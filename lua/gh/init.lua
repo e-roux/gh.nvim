@@ -6,6 +6,17 @@ M.cache = require("gh.cache")
 M.cli = require("gh.cli")
 M.issues = require("gh.issues")
 M.buffer = require("gh.buffer")
+M.config = require("gh.config")
+
+--- Initialize gh.nvim autocmds
+--- This is called automatically on require, no need to call explicitly
+function M.setup()
+  -- Set up autocmds for gh:// buffers
+  M.issues.setup_autocmds()
+end
+
+-- Auto-setup on require
+M.setup()
 
 --- Main entry point for :Gh command
 ---@param opts table Command options from nvim_create_user_command

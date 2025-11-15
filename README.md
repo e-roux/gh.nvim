@@ -1,6 +1,8 @@
 # gh.nvim
 
-Neovim integration for GitHub CLI (`gh`) - simple and robust.
+**⚠️ Work In Progress** - This plugin is under active development and APIs may change.
+
+Neovim integration for GitHub CLI (`gh`).
 
 ## Philosophy
 
@@ -18,7 +20,7 @@ This plugin provides Neovim utilities for working with the GitHub CLI, including
 - Async command execution
 - In-memory caching with TTL
 - Command completion
-- Issue/PR management utilities
+- Issue/PR (plan) management utilities
 
 ## Structure
 
@@ -26,6 +28,7 @@ This plugin provides Neovim utilities for working with the GitHub CLI, including
 gh.nvim/
 ├── lua/gh/
 │   ├── init.lua       # Main module entry point
+│   ├── config.lua     # Configuration module
 │   ├── buffer.lua     # Buffer management utilities
 │   ├── cache.lua      # In-memory caching with TTL support
 │   ├── cli.lua        # GitHub CLI wrapper functions
@@ -33,6 +36,8 @@ gh.nvim/
 │   └── types.lua      # Type definitions
 ├── plugin/
 │   └── gh.lua         # Plugin initialization & commands
+├── test/              # Unit tests
+├── examples/          # Example scripts and demos
 └── README.md
 ```
 
@@ -41,9 +46,15 @@ gh.nvim/
 ### Issue List View
 
 ```vim
-:Gh issue list              " Open issues for current repo
-:Gh issue list owner/repo   " Open issues for specific repo
+:Gh issue list                           " Open issues for current repo (open issues only, default)
+:Gh issue list --state all               " All issues (open + closed)
+:Gh issue list --state closed            " Closed issues only
+:Gh issue list --limit 50                " Limit to 50 issues
+:Gh issue list --repo owner/repo         " Issues from specific repo
+:Gh issue list --state all --limit 100   " Combine flags
 ```
+
+**Note:** Like `gh` CLI, `:Gh issue list` shows **open issues only** by default. Use `--state all` to see both open and closed issues.
 
 The issue list buffer displays issues in an editable table format:
 ```
@@ -63,8 +74,8 @@ The issue list buffer displays issues in an editable table format:
 ### Issue Detail View
 
 ```vim
-:Gh issue view 123              " Open issue #123 for current repo
-:Gh issue view 123 owner/repo   " Open issue from specific repo
+:Gh issue view 123                  " Open issue #123 for current repo
+:Gh issue view 123 --repo owner/repo " Open issue from specific repo
 ```
 
 The issue detail buffer shows the full issue with editable content:
@@ -95,12 +106,17 @@ After the title, you'll see issue metadata in virtual text:
 
 ### Command Completion
 
-The `:Gh` command has tab completion for subcommands:
+The `:Gh` command has tab completion for subcommands and flags:
 
 ```vim
-:Gh <TAB>              " Shows: issue, pr, repo, run, workflow
-:Gh issue <TAB>        " Shows: list, view, create, close, reopen
-:Gh pr <TAB>           " Shows: list, view, create, checkout, status
+:Gh <TAB>                      " Shows: issue, pr, repo, run, workflow
+:Gh issue <TAB>                " Shows: list, view, create, close, reopen
+:Gh pr <TAB>                   " Shows: list, view, create, checkout, status
+
+" Flag completion
+:Gh issue list -<TAB>          " Shows: --state, -s, --limit, -L, --repo, -R
+:Gh issue list --state <TAB>   " Shows: open, closed, all
+:Gh issue view 123 -<TAB>      " Shows: --repo, -R
 ```
 
 ### Cache Module (`gh.cache`)
@@ -172,6 +188,64 @@ To extract as standalone:
 1. Copy `plugin/gh.nvim/` directory
 2. Install as regular Neovim plugin
 3. Ensure `gh` CLI is installed and authenticated
+
+## Configuration
+
+Configuration is passed via `vim.g.gh_opts` and automatically merged with defaults when the plugin loads.
+
+### Default Configuration
+
+```lua
+{
+  issue_detail = {
+    reuse_window = true,          -- Reuse existing issue detail window
+    split_direction = "horizontal" -- "horizontal" or "vertical"
+  }
+}
+```
+
+### Configuration Examples
+
+**Example 1: Open each issue in a new vertical split**
+
+```lua
+vim.g.gh_opts = {
+  issue_detail = {
+    reuse_window = false,
+    split_direction = "vertical",
+  }
+}
+```
+
+**Example 2: Reuse window with vertical splits**
+
+```lua
+vim.g.gh_opts = {
+  issue_detail = {
+    reuse_window = true,
+    split_direction = "vertical",
+  }
+}
+```
+
+**Important:** Set `vim.g.gh_opts` **before** the plugin loads (e.g., in your `init.lua` or before calling `require("gh")`).
+
+### Why Global Variables?
+
+This approach follows [modern Neovim plugin patterns](https://mrcjkb.dev/posts/2023-08-22-setup.html) and provides:
+- Faster startup (no `setup()` function call required)
+- Simpler configuration
+- Compatibility with lazy loading
+- Alignment with Neovim 0.12+ conventions
+
+### Accessing Configuration
+
+You can access the resolved configuration at runtime:
+
+```lua
+local config = require("gh.config")
+print(vim.inspect(config.opts))
+```
 
 ## Design Principles
 

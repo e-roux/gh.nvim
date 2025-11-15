@@ -6,6 +6,13 @@ local M = {}
 ---@param name string Buffer name
 ---@return integer bufnr Buffer number
 function M.create_scratch(name)
+  -- Check if a buffer with this name already exists
+  local existing_bufnr = vim.fn.bufnr(name)
+  if existing_bufnr ~= -1 then
+    -- Reuse existing buffer
+    return existing_bufnr
+  end
+  
   local bufnr = vim.api.nvim_create_buf(false, true)
   vim.api.nvim_buf_set_name(bufnr, name)
   
@@ -52,10 +59,49 @@ function M.open_split(bufnr, vertical)
   vim.api.nvim_set_current_buf(bufnr)
 end
 
+--- Find window displaying an issue detail buffer (gh://issue/*)
+---@return integer|nil Window ID if found, nil otherwise
+function M.find_issue_detail_window()
+  for _, win in ipairs(vim.api.nvim_list_wins()) do
+    local buf = vim.api.nvim_win_get_buf(win)
+    local bufname = vim.api.nvim_buf_get_name(buf)
+    -- Check if buffer name matches issue detail pattern
+    if bufname:match("^gh://issue/") then
+      return win
+    end
+  end
+  return nil
+end
+
+--- Open buffer, optionally reusing an existing issue detail window
+---@param bufnr integer Buffer number
+---@param opts table|nil Options: { reuse_window: boolean, vertical: boolean }
+function M.open_smart(bufnr, opts)
+  opts = opts or {}
+  local reuse = opts.reuse_window
+  local vertical = opts.vertical
+  
+  if reuse then
+    -- Try to find and reuse an existing issue detail window
+    local existing_win = M.find_issue_detail_window()
+    if existing_win then
+      vim.api.nvim_set_current_win(existing_win)
+      vim.api.nvim_set_current_buf(bufnr)
+      return
+    end
+  end
+  
+  -- No existing window to reuse, open in split
+  M.open_split(bufnr, vertical)
+end
+
 --- Set up autocmd for buffer write
 ---@param bufnr integer Buffer number
 ---@param callback fun(bufnr: integer): boolean Write callback, return true on success
 function M.on_write(bufnr, callback)
+  -- Clear existing BufWriteCmd autocmds for this buffer
+  vim.api.nvim_clear_autocmds({ event = "BufWriteCmd", buffer = bufnr })
+  
   vim.api.nvim_create_autocmd("BufWriteCmd", {
     buffer = bufnr,
     callback = function()

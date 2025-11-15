@@ -23,18 +23,54 @@ local function gh_command(opts)
   
   -- Check if this is an issue subcommand
   if args[1] == "issue" then
-    if args[2] == "list" then
-      -- :Gh issue list [repo]
-      local repo = args[3]
-      gh.issues.open_issue_list(repo)
+    if args[2] == "list" or args[2] == "ls" then
+      -- Parse flags: :Gh issue list [--state open|closed|all] [--limit N] [--repo owner/repo]
+      local state = "open"  -- Default to open, mirroring gh CLI
+      local limit = nil
+      local repo = nil
+      
+      local i = 3
+      while i <= #args do
+        local arg = args[i]
+        if arg == "--state" or arg == "-s" then
+          state = args[i + 1]
+          i = i + 2
+        elseif arg == "--limit" or arg == "-L" then
+          limit = tonumber(args[i + 1])
+          i = i + 2
+        elseif arg == "--repo" or arg == "-R" then
+          repo = args[i + 1]
+          i = i + 2
+        else
+          -- Positional argument (repo without flag)
+          repo = arg
+          i = i + 1
+        end
+      end
+      
+      gh.issues.open_issue_list(repo, { state = state, limit = limit })
       return
     elseif args[2] == "view" then
-      -- :Gh issue view <number> [repo]
-      local number = tonumber(args[3])
-      local repo = args[4]
+      -- :Gh issue view <number> [--repo owner/repo]
+      local number = nil
+      local repo = nil
+      
+      local i = 3
+      while i <= #args do
+        local arg = args[i]
+        if arg == "--repo" or arg == "-R" then
+          repo = args[i + 1]
+          i = i + 2
+        elseif not number then
+          number = tonumber(arg)
+          i = i + 1
+        else
+          i = i + 1
+        end
+      end
       
       if not number then
-        vim.notify("Usage: :Gh issue view <number> [repo]", vim.log.levels.ERROR)
+        vim.notify("Usage: :Gh issue view <number> [--repo owner/repo]", vim.log.levels.ERROR)
         return
       end
       
@@ -101,6 +137,39 @@ local function gh_complete(arg_lead, cmd_line, cursor_pos)
     return vim.tbl_filter(function(item)
       return vim.startswith(item, arg_lead)
     end, candidates)
+  end
+  
+  -- Flag completion for issue list command
+  if args[1] == "issue" and (args[2] == "list" or args[2] == "ls") then
+    -- Check if previous arg is a flag that expects a value
+    local prev_arg = #args > 0 and args[#args] or nil
+    
+    -- Complete state values after --state or -s
+    if prev_arg == "--state" or prev_arg == "-s" then
+      local candidates = { "open", "closed", "all" }
+      return vim.tbl_filter(function(item)
+        return vim.startswith(item, arg_lead)
+      end, candidates)
+    end
+    
+    -- Complete flags
+    if vim.startswith(arg_lead, "-") then
+      local candidates = { "--state", "-s", "--limit", "-L", "--repo", "-R" }
+      return vim.tbl_filter(function(item)
+        return vim.startswith(item, arg_lead)
+      end, candidates)
+    end
+  end
+  
+  -- Flag completion for issue view command
+  if args[1] == "issue" and args[2] == "view" then
+    -- Complete flags
+    if vim.startswith(arg_lead, "-") then
+      local candidates = { "--repo", "-R" }
+      return vim.tbl_filter(function(item)
+        return vim.startswith(item, arg_lead)
+      end, candidates)
+    end
   end
   
   return {}

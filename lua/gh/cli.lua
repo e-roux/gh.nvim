@@ -26,9 +26,25 @@ end
 
 --- List issues for a repository
 ---@param repo string|nil Repository (owner/repo) or nil for current repo
+---@param opts table|nil Options: { limit: number, state: string }
 ---@param callback fun(success: boolean, issues: table[]|nil, error: string|nil)
-function M.list_issues(repo, callback)
-  local args = { "issue", "list", "--json", "number,title,state,labels,assignees,author,createdAt,updatedAt" }
+function M.list_issues(repo, opts, callback)
+  -- Handle old signature: list_issues(repo, callback)
+  if type(opts) == "function" then
+    callback = opts
+    opts = {}
+  end
+  
+  opts = opts or {}
+  local limit = opts.limit or 30
+  local state = opts.state or "open"
+  
+  local args = { 
+    "issue", "list", 
+    "--json", "number,title,state,labels,assignees,author,createdAt,updatedAt",
+    "--limit", tostring(limit),
+    "--state", state
+  }
   if repo then
     table.insert(args, "--repo")
     table.insert(args, repo)

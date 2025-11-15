@@ -12,6 +12,33 @@ local VALID_STATES = {
   CLOSED = true,
 }
 
+--- Set up syntax highlighting for issue list
+---@param bufnr integer Buffer number
+local function setup_issue_list_highlights(bufnr)
+  -- Define highlight groups if they don't exist
+  vim.api.nvim_set_hl(0, "GhIssueNumber", { link = "Number", default = true })
+  vim.api.nvim_set_hl(0, "GhIssueStateOpen", { link = "DiagnosticOk", default = true })
+  vim.api.nvim_set_hl(0, "GhIssueStateClosed", { link = "Comment", default = true })
+  vim.api.nvim_set_hl(0, "GhIssueTitle", { link = "Normal", default = true })
+  vim.api.nvim_set_hl(0, "GhIssueSeparator", { link = "Comment", default = true })
+  
+  -- Clear any existing matches
+  vim.fn.clearmatches()
+  
+  -- Apply syntax highlighting patterns
+  -- Match issue numbers: #123
+  vim.fn.matchadd("GhIssueNumber", [[^#\d\+]], 10, -1, { window = 0 })
+  
+  -- Match OPEN state
+  vim.fn.matchadd("GhIssueStateOpen", [[│\s\+OPEN\s\+│]], 10, -1, { window = 0 })
+  
+  -- Match CLOSED state
+  vim.fn.matchadd("GhIssueStateClosed", [[│\s\+CLOSED\s\+│]], 10, -1, { window = 0 })
+  
+  -- Match separators │
+  vim.fn.matchadd("GhIssueSeparator", [[│]], 10, -1, { window = 0 })
+end
+
 --- Parse issue list buffer to extract changes
 ---@param lines string[] Buffer lines
 ---@param collection gh.IssueCollection Original issue collection
@@ -78,14 +105,82 @@ end
 
 --- Open issue list buffer
 ---@param repo string|nil Repository (owner/repo) or nil for current repo
-function M.open_issue_list(repo)
-  local cache_key = repo and ("issues_" .. repo:gsub("/", "_")) or "issues_current"
+---@param opts table|nil Options: { limit: number, append: boolean, existing_bufnr: number, state: string }
+function M.open_issue_list(repo, opts)
+  opts = opts or {}
+  
+  -- Calculate default limit based on window height
+  -- Subtract 2 for header lines, and a few more for comfort
+  local default_limit = math.max(10, vim.api.nvim_win_get_height(0) - 4)
+  
+  local limit = opts.limit or default_limit
+  local append = opts.append or false
+  local existing_bufnr = opts.existing_bufnr
+  local state = opts.state or "open"  -- Default to "open" to mirror gh CLI
+  
+  -- Include state in cache key
+  local cache_key = string.format("issues_%s_%s", 
+    repo and repo:gsub("/", "_") or "current",
+    state
+  )
+  
+  -- For appending, we skip cache and always fetch fresh data
+  if append then
+    -- Get existing collection to determine how many we already have
+    local bufnr = existing_bufnr or vim.api.nvim_get_current_buf()
+    local ok, existing_data = pcall(vim.api.nvim_buf_get_var, bufnr, "gh_issues_collection")
+    if not ok then
+      vim.notify("Cannot append: buffer not initialized", vim.log.levels.ERROR)
+      return
+    end
+    
+    local currently_loaded = #existing_data
+    local new_limit = currently_loaded + limit  -- Fetch more than we have
+    
+    vim.notify(string.format("Loading issues %d-%d...", currently_loaded + 1, new_limit), vim.log.levels.INFO)
+    
+    cli.list_issues(repo, { limit = new_limit, state = state }, function(success, all_issues, error)
+      if not success then
+        vim.notify("Failed to fetch more issues: " .. (error or "unknown error"), vim.log.levels.ERROR)
+        return
+      end
+      
+      if not all_issues or #all_issues == 0 then
+        vim.notify("No issues found", vim.log.levels.INFO)
+        return
+      end
+      
+      -- Check if we got more issues than before
+      if #all_issues <= currently_loaded then
+        -- No more issues available - mark as exhausted
+        vim.api.nvim_buf_set_var(bufnr, "gh_issues_exhausted", true)
+        -- Don't show notification for auto-load, only for manual M press
+        return
+      end
+      
+      -- Update buffer with all issues
+      local collection = types.IssueCollection.new(all_issues)
+      local lines = format_issue_list(collection)
+      buffer.set_lines(bufnr, lines)
+      
+      -- Update stored collection
+      vim.api.nvim_buf_set_var(bufnr, "gh_issues_collection", collection:to_table())
+      vim.api.nvim_buf_set_var(bufnr, "gh_issues_loaded", #all_issues)
+      
+      local added = #all_issues - currently_loaded
+      -- Only show notification if it was manually triggered (via M key)
+      if not vim.api.nvim_buf_get_var(bufnr, "gh_loading") then
+        vim.notify(string.format("Loaded %d more issues (%d total)", added, #all_issues), vim.log.levels.INFO)
+      end
+    end)
+    return
+  end
   
   -- Use cache with fallback to fetch
   cache.get_or_fetch(
     cache_key,
     function(callback)
-      cli.list_issues(repo, function(success, issues, error)
+      cli.list_issues(repo, { limit = limit, state = state }, function(success, issues, error)
         if success then
           callback(issues)
         else
@@ -114,6 +209,8 @@ function M.open_issue_list(repo)
       -- Store original collection in buffer variable for comparison on write
       vim.api.nvim_buf_set_var(bufnr, "gh_issues_collection", collection:to_table())
       vim.api.nvim_buf_set_var(bufnr, "gh_repo", repo or "")
+      vim.api.nvim_buf_set_var(bufnr, "gh_issues_loaded", #issues)
+      vim.api.nvim_buf_set_var(bufnr, "gh_issues_state", state)
       
       -- Set up write handler
       buffer.on_write(bufnr, function(buf)
@@ -205,14 +302,74 @@ function M.open_issue_list(repo)
         ["R"] = {
           callback = function()
             cache.clear(cache_key)
-            M.open_issue_list(repo)
+            M.open_issue_list(repo, { state = state })
           end,
           desc = "Refresh issue list",
         },
+        ["M"] = {
+          callback = function()
+            -- Calculate increment based on window height (same as initial load)
+            local increment = math.max(10, vim.api.nvim_win_get_height(0) - 4)
+            M.open_issue_list(repo, { 
+              limit = increment, 
+              append = true,
+              existing_bufnr = bufnr,
+              state = state,
+            })
+          end,
+          desc = "Load more issues (window height)",
+        },
+      })
+      
+      -- Set up auto-load on scroll to bottom
+      vim.api.nvim_create_autocmd("CursorMoved", {
+        buffer = bufnr,
+        callback = function()
+          -- Check if we've already loaded all available issues
+          local ok, exhausted = pcall(vim.api.nvim_buf_get_var, bufnr, "gh_issues_exhausted")
+          if ok and exhausted then
+            return
+          end
+          
+          -- Check if we're near the bottom of the buffer
+          local cursor_line = vim.api.nvim_win_get_cursor(0)[1]
+          local total_lines = vim.api.nvim_buf_line_count(bufnr)
+          local window_height = vim.api.nvim_win_get_height(0)
+          
+          -- If cursor is within 3 lines of the bottom, auto-load more
+          if cursor_line >= total_lines - 3 then
+            -- Check if we're already loading
+            local ok_loading, loading = pcall(vim.api.nvim_buf_get_var, bufnr, "gh_loading")
+            if ok_loading and loading then
+              return
+            end
+            
+            -- Set loading flag to prevent duplicate fetches
+            vim.api.nvim_buf_set_var(bufnr, "gh_loading", true)
+            
+            -- Calculate increment based on window height
+            local increment = math.max(10, window_height - 4)
+            
+            M.open_issue_list(repo, { 
+              limit = increment, 
+              append = true,
+              existing_bufnr = bufnr,
+              state = state,
+            })
+            
+            -- Clear loading flag after a short delay
+            vim.defer_fn(function()
+              pcall(vim.api.nvim_buf_set_var, bufnr, "gh_loading", false)
+            end, 1000)
+          end
+        end,
       })
       
       -- Open buffer
       buffer.open(bufnr)
+      
+      -- Set up syntax highlighting
+      setup_issue_list_highlights(bufnr)
       
       -- Set filetype for syntax highlighting
       vim.api.nvim_set_option_value("filetype", "gh-issues", { buf = bufnr })
@@ -226,19 +383,14 @@ end
 local function parse_issue_detail(lines)
   local title = ""
   local body_lines = {}
-  local in_body = false
   
   for i, line in ipairs(lines) do
     if i == 1 then
       -- First line is title
       title = line:gsub("^#%s*", "")
     elseif i > 2 then
-      -- After line 2, everything is body (line 2 is blank separator)
-      if not in_body and line == "" then
-        in_body = true
-      elseif in_body then
-        table.insert(body_lines, line)
-      end
+      -- Line 2 is the blank separator, everything after is body
+      table.insert(body_lines, line)
     end
   end
   
@@ -259,7 +411,8 @@ local function format_issue_detail(issue)
   
   -- Add body
   if issue.body then
-    for line in issue.body:gmatch("[^\n]+") do
+    -- Split by newline, preserving empty lines
+    for line in (issue.body .. "\n"):gmatch("([^\n]*)\n") do
       table.insert(lines, line)
     end
   end
@@ -333,6 +486,9 @@ local function add_issue_metadata_virtual_text(bufnr)
   
   -- Add virtual text after line 1 (title line)
   if #virt_lines > 0 then
+    -- Add empty line for spacing after metadata
+    table.insert(virt_lines, { { "", "Normal" } })
+    
     vim.api.nvim_buf_set_extmark(bufnr, ns_id, 1, 0, {
       virt_lines = virt_lines,
       virt_lines_above = false,
@@ -440,12 +596,180 @@ function M.open_issue_detail(number, repo)
       },
     })
     
-    -- Open in split
-    buffer.open_split(bufnr, false)
+    -- Open in split with config options
+    local config = require("gh.config")
+    buffer.open_smart(bufnr, {
+      reuse_window = config.opts.issue_detail.reuse_window,
+      vertical = config.opts.issue_detail.split_direction == "vertical",
+    })
     
     -- Set filetype
     vim.api.nvim_set_option_value("filetype", "markdown", { buf = bufnr })
   end)
+end
+
+--- Set up autocmds for gh:// buffers
+function M.setup_autocmds()
+  local group = vim.api.nvim_create_augroup("GhNvim", { clear = true })
+  
+  -- Suppress errors for gh:// buffers on BufEnter
+  vim.api.nvim_create_autocmd("BufEnter", {
+    group = group,
+    pattern = "gh://*",
+    callback = function()
+      -- Mark as valid buffer to suppress errors from other plugins
+      vim.bo.buftype = "acwrite"
+      vim.b.is_gh_buffer = true
+      return true
+    end,
+  })
+  
+  -- Handle :e or buffer reload for gh://issues buffers
+  vim.api.nvim_create_autocmd({ "BufReadCmd", "BufNewFile" }, {
+    group = group,
+    pattern = "gh://issues",
+    callback = function()
+      M.open_issue_list(nil)
+      return true
+    end,
+  })
+  
+  -- Handle :e or buffer reload for gh://issues/* buffers (with repo)
+  vim.api.nvim_create_autocmd({ "BufReadCmd", "BufNewFile" }, {
+    group = group,
+    pattern = "gh://issues/*",
+    callback = function(args)
+      local repo = args.file:match("^gh://issues/(.+)$")
+      M.open_issue_list(repo)
+      return true
+    end,
+  })
+  
+  -- Handle :e or buffer reload for gh://issue/* buffers (issue detail)
+  -- Use both BufReadCmd and BufNewFile to catch all cases
+  vim.api.nvim_create_autocmd({ "BufReadCmd", "BufNewFile" }, {
+    group = group,
+    pattern = { "gh://issue/*", "gh://issue/*/*/*/*" },
+    callback = function(args)
+      -- Parse: gh://issue/123 or gh://issue/owner/repo/123
+      local file = args.file
+      local repo, number
+      
+      -- Try: gh://issue/owner/repo/123
+      repo, number = file:match("^gh://issue/([^/]+/[^/]+)/(%d+)$")
+      if not number then
+        -- Try: gh://issue/123
+        number = file:match("^gh://issue/(%d+)$")
+      end
+      
+      if number then
+        -- Get current buffer number - this is the buffer being reloaded
+        local bufnr = vim.api.nvim_get_current_buf()
+        
+        -- Mark buffer as loaded to prevent error message
+        vim.bo[bufnr].buftype = "acwrite"
+        
+        -- Fetch and refresh the issue in the current buffer
+        cli.get_issue(tonumber(number), repo, function(success, issue, error)
+          if not success then
+            vim.notify("Failed to fetch issue: " .. (error or "unknown error"), vim.log.levels.ERROR)
+            return
+          end
+          
+          -- Format and display issue in the existing buffer
+          local lines = format_issue_detail(issue)
+          buffer.set_lines(bufnr, lines)
+          
+          -- Update stored issue data
+          vim.api.nvim_buf_set_var(bufnr, "gh_issue_number", tonumber(number))
+          vim.api.nvim_buf_set_var(bufnr, "gh_repo", repo or "")
+          vim.api.nvim_buf_set_var(bufnr, "gh_original_issue", issue)
+          
+          -- Refresh virtual text metadata
+          add_issue_metadata_virtual_text(bufnr)
+          
+          -- Set up write handler if not already set
+          buffer.on_write(bufnr, function(buf)
+            local current_lines = buffer.get_lines(buf)
+            local parsed = parse_issue_detail(current_lines)
+            local issue_number = vim.api.nvim_buf_get_var(buf, "gh_issue_number")
+            local target_repo = vim.api.nvim_buf_get_var(buf, "gh_repo")
+            local original = vim.api.nvim_buf_get_var(buf, "gh_original_issue")
+            
+            if target_repo == "" then
+              target_repo = nil
+            end
+            
+            local pending = 0
+            local errors = {}
+            
+            -- Update title if changed
+            if parsed.title ~= original.title then
+              pending = pending + 1
+              cli.update_title(issue_number, parsed.title, target_repo, function(success, err)
+                pending = pending - 1
+                if not success then
+                  table.insert(errors, "title: " .. (err or "unknown"))
+                end
+              end)
+            end
+            
+            -- Update body if changed
+            if parsed.body ~= original.body then
+              pending = pending + 1
+              cli.update_body(issue_number, parsed.body, target_repo, function(success, err)
+                pending = pending - 1
+                if not success then
+                  table.insert(errors, "body: " .. (err or "unknown"))
+                end
+              end)
+            end
+            
+            if pending == 0 then
+              vim.notify("No changes detected", vim.log.levels.INFO)
+              return true
+            end
+            
+            -- Wait for operations to complete
+            vim.wait(5000, function()
+              return pending == 0
+            end)
+            
+            if #errors > 0 then
+              vim.notify("Errors saving changes:\n" .. table.concat(errors, "\n"), vim.log.levels.ERROR)
+              return false
+            end
+            
+            return true
+          end)
+          
+          -- Set up keymaps
+          buffer.set_keymaps(bufnr, {
+            ["q"] = {
+              callback = function()
+                vim.cmd("close")
+              end,
+              desc = "Close issue detail",
+            },
+            ["gx"] = {
+              callback = function()
+                local ok, iss = pcall(vim.api.nvim_buf_get_var, bufnr, "gh_original_issue")
+                if ok and iss and iss.url then
+                  vim.ui.open(iss.url)
+                end
+              end,
+              desc = "Open issue in browser",
+            },
+          })
+          
+          -- Set filetype
+          vim.api.nvim_set_option_value("filetype", "markdown", { buf = bufnr })
+        end)
+      end
+      
+      return true
+    end,
+  })
 end
 
 -- Export for testing
