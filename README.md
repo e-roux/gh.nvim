@@ -4,7 +4,7 @@
 
 Neovim integration for GitHub CLI (`gh`).
 
-## Philosophy
+## Design Goals
 
 **Keep it simple.** For advanced GitHub features, use the browser. This plugin focuses on:
 - Basic issue viewing and editing
@@ -182,12 +182,77 @@ These commands execute asynchronously and populate the quickfix list with result
 
 ## Installation
 
-This plugin is currently part of a personal Neovim configuration.
+### Prerequisites
 
-To extract as standalone:
-1. Copy `plugin/gh.nvim/` directory
-2. Install as regular Neovim plugin
-3. Ensure `gh` CLI is installed and authenticated
+- Neovim 0.8+ (tested with 0.10+)
+- [GitHub CLI (`gh`)](https://cli.github.com/) installed and authenticated
+- [plenary.nvim](https://github.com/nvim-lua/plenary.nvim)
+
+### Using lazy.nvim
+
+```lua
+{
+  "e-roux/gh.nvim",
+  dependencies = { "nvim-lua/plenary.nvim" },
+  init = function()
+    -- Set options before plugin loads
+    vim.g.gh_opts = {
+      issue_detail = {
+        reuse_window = true,
+        split_direction = "horizontal",
+      }
+    }
+  end,
+}
+```
+
+### Using packer.nvim
+
+```lua
+use {
+  "e-roux/gh.nvim",
+  requires = { "nvim-lua/plenary.nvim" },
+  config = function()
+    vim.g.gh_opts = {
+      issue_detail = {
+        reuse_window = true,
+        split_direction = "horizontal",
+      }
+    }
+  end,
+}
+```
+
+### Using vim-plug
+
+```vim
+Plug 'nvim-lua/plenary.nvim'
+Plug 'e-roux/gh.nvim'
+```
+
+Then in your `init.lua`:
+```lua
+vim.g.gh_opts = {
+  issue_detail = {
+    reuse_window = true,
+    split_direction = "horizontal",
+  }
+}
+```
+
+### Manual Installation
+
+1. Clone this repository to your Neovim config directory:
+   ```bash
+   git clone https://github.com/e-roux/gh.nvim ~/.config/nvim/pack/plugins/start/gh.nvim
+   ```
+
+2. Install plenary.nvim if not already installed
+
+3. Ensure `gh` CLI is installed and authenticated:
+   ```bash
+   gh auth login
+   ```
 
 ## Configuration
 
@@ -269,4 +334,4 @@ print(vim.inspect(config.opts))
 
 ## License
 
-TBD
+VIM License - see [Vim License](https://vimhelp.org/uganda.txt.html#license)
