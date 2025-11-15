@@ -28,7 +28,7 @@ end
 ---@param repo string|nil Repository (owner/repo) or nil for current repo
 ---@param callback fun(success: boolean, issues: table[]|nil, error: string|nil)
 function M.list_issues(repo, callback)
-  local args = { "issue", "list", "--json", "number,title,state,labels" }
+  local args = { "issue", "list", "--json", "number,title,state,labels,assignees,author,createdAt,updatedAt" }
   if repo then
     table.insert(args, "--repo")
     table.insert(args, repo)
@@ -55,7 +55,7 @@ end
 ---@param repo string|nil Repository (owner/repo) or nil for current repo
 ---@param callback fun(success: boolean, issue: table|nil, error: string|nil)
 function M.get_issue(number, repo, callback)
-  local args = { "issue", "view", tostring(number), "--json", "number,title,body,state,labels" }
+  local args = { "issue", "view", tostring(number), "--json", "number,title,body,state,labels,assignees,author,createdAt,updatedAt,url" }
   if repo then
     table.insert(args, "--repo")
     table.insert(args, repo)

@@ -1,24 +1,17 @@
---- Shared cache for GitHub data (issues, PRs, etc)
---- Cache location: $XDG_CACHE_HOME/nvim/gh/
---- This cache is designed to be shared with zsh completions
+--- In-memory cache for GitHub data (issues, PRs, etc)
+--- Cache is session-scoped and cleared on restart
 local M = {}
 
-local cache_dir = vim.fn.expand("$XDG_CACHE_HOME/nvim/gh")
 local default_ttl = 300 -- 5 minutes
 
---- Ensure cache directory exists
-local function ensure_cache_dir()
-  if vim.fn.isdirectory(cache_dir) == 0 then
-    vim.fn.mkdir(cache_dir, "p")
-  end
-end
+--- Cache entry structure
+---@class CacheEntry
+---@field data table Cached data
+---@field timestamp number Timestamp when cached
 
---- Get cache file path for a key
----@param key string Cache key (e.g., "issues_open", "prs_merged")
----@return string Cache file path
-local function get_cache_path(key)
-  return cache_dir .. "/" .. key .. ".json"
-end
+--- In-memory cache storage
+---@type table<string, CacheEntry>
+local cache_store = {}
 
 --- Check if cache is valid
 ---@param key string Cache key
@@ -26,42 +19,27 @@ end
 ---@return boolean True if cache is valid
 function M.is_valid(key, ttl)
   ttl = ttl or default_ttl
-  local cache_path = get_cache_path(key)
+  local entry = cache_store[key]
   
-  if vim.fn.filereadable(cache_path) == 0 then
+  if not entry then
     return false
   end
   
-  local mtime = vim.fn.getftime(cache_path)
   local now = os.time()
-  
-  return (now - mtime) < ttl
+  return (now - entry.timestamp) < ttl
 end
 
 --- Read from cache
 ---@param key string Cache key
 ---@return table|nil Cached data or nil if not found/invalid
 function M.read(key)
-  local cache_path = get_cache_path(key)
+  local entry = cache_store[key]
   
-  if vim.fn.filereadable(cache_path) == 0 then
+  if not entry then
     return nil
   end
   
-  local file = io.open(cache_path, "r")
-  if not file then
-    return nil
-  end
-  
-  local content = file:read("*all")
-  file:close()
-  
-  local ok, data = pcall(vim.json.decode, content)
-  if not ok then
-    return nil
-  end
-  
-  return data
+  return entry.data
 end
 
 --- Write to cache
@@ -69,22 +47,10 @@ end
 ---@param data table Data to cache
 ---@return boolean Success
 function M.write(key, data)
-  ensure_cache_dir()
-  local cache_path = get_cache_path(key)
-  
-  local ok, json = pcall(vim.json.encode, data)
-  if not ok then
-    return false
-  end
-  
-  local file = io.open(cache_path, "w")
-  if not file then
-    return false
-  end
-  
-  file:write(json)
-  file:close()
-  
+  cache_store[key] = {
+    data = data,
+    timestamp = os.time(),
+  }
   return true
 end
 
@@ -115,26 +81,26 @@ end
 --- Clear cache for a specific key
 ---@param key string Cache key
 function M.clear(key)
-  local cache_path = get_cache_path(key)
-  if vim.fn.filereadable(cache_path) == 1 then
-    vim.fn.delete(cache_path)
-  end
+  cache_store[key] = nil
 end
 
 --- Clear all cache
 function M.clear_all()
-  if vim.fn.isdirectory(cache_dir) == 1 then
-    local files = vim.fn.glob(cache_dir .. "/*.json", false, true)
-    for _, file in ipairs(files) do
-      vim.fn.delete(file)
-    end
-  end
+  cache_store = {}
 end
 
---- Get cache directory path
----@return string Cache directory path
-function M.get_cache_dir()
-  return cache_dir
+--- Get cache statistics
+---@return table Statistics about cache usage
+function M.get_stats()
+  local count = 0
+  for _ in pairs(cache_store) do
+    count = count + 1
+  end
+  
+  return {
+    entry_count = count,
+    keys = vim.tbl_keys(cache_store),
+  }
 end
 
 return M

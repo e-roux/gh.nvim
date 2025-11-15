@@ -4,6 +4,8 @@ local M = {}
 
 M.cache = require("gh.cache")
 M.cli = require("gh.cli")
+M.issues = require("gh.issues")
+M.buffer = require("gh.buffer")
 
 --- Main entry point for :Gh command
 ---@param opts table Command options from nvim_create_user_command
