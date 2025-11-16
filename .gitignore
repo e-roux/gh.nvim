@@ -1,1 +1,8 @@
 test/runtime
+
+# Development/testing dependencies (use package manager instead)
+snacks.nvim/
+grug-far.nvim/
+
+# Working documents
+DESIGN.md

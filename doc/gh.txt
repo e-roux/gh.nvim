@@ -1,0 +1,309 @@
+*gh.txt*  GitHub CLI integration for Neovim
+
+==============================================================================
+CONTENTS                                                        *gh-contents*
+
+    1. Introduction ............................ |gh-introduction|
+    2. Installation ............................ |gh-installation|
+    3. Commands ................................ |gh-commands|
+    4. Configuration ........................... |gh-configuration|
+    5. Issue List .............................. |gh-issue-list|
+    6. Issue Detail ............................ |gh-issue-detail|
+    7. Keymaps ................................. |gh-keymaps|
+    8. API ..................................... |gh-api|
+    9. License ................................. |gh-license|
+
+==============================================================================
+1. INTRODUCTION                                             *gh-introduction*
+
+gh.nvim provides Neovim integration for the GitHub CLI (`gh`).
+
+Design Goals:
+- Keep it simple - for advanced features, use the browser
+- Basic issue viewing and editing
+- Quick access from Neovim
+- Seamless sync via `gh` CLI
+- No complex UI, just text buffers
+
+Features:
+- Oil.nvim-style buffer editing for issues
+- Virtual text for issue metadata (labels, assignees, state, dates)
+- Async command execution
+- In-memory caching with TTL
+- Command completion
+- Issue/PR management utilities
+
+==============================================================================
+2. INSTALLATION                                             *gh-installation*
+
+Prerequisites:
+- Neovim 0.8+ (tested with 0.10+)
+- GitHub CLI (`gh`) installed and authenticated
+- plenary.nvim
+
+Using lazy.nvim: >lua
+    {
+      "e-roux/gh.nvim",
+      dependencies = { "nvim-lua/plenary.nvim" },
+      init = function()
+        vim.g.gh_opts = {
+          issue_detail = {
+            reuse_window = true,
+            split_direction = "horizontal",
+          }
+        }
+      end,
+    }
+<
+
+Using packer.nvim: >lua
+    use {
+      "e-roux/gh.nvim",
+      requires = { "nvim-lua/plenary.nvim" },
+      config = function()
+        vim.g.gh_opts = {
+          issue_detail = {
+            reuse_window = true,
+            split_direction = "horizontal",
+          }
+        }
+      end,
+    }
+<
+
+After installation, authenticate with GitHub CLI: >bash
+    gh auth login
+<
+
+==============================================================================
+3. COMMANDS                                                     *gh-commands*
+
+:Gh issue list                                           *:Gh-issue-list*
+    Open issues for current repository (open issues only by default).
+    Mirrors `gh issue list` behavior.
+
+    Flags:
+        --state {open|closed|all}  Filter by state (default: open)
+        -s {open|closed|all}       Short form
+        --limit N                  Limit number of issues
+        -L N                       Short form
+        --repo owner/repo          Specify repository
+        -R owner/repo              Short form
+
+    Examples: >vim
+        :Gh issue list
+        :Gh issue list --state all
+        :Gh issue list --state closed
+        :Gh issue list --limit 50
+        :Gh issue list --repo owner/repo
+        :Gh issue list --state all --limit 100
+<
+
+:Gh issue ls                                                  *:Gh-issue-ls*
+    Alias for |:Gh-issue-list|
+
+:Gh issue view <number>                                  *:Gh-issue-view*
+    Open issue detail view for the specified issue number.
+
+    Flags:
+        --repo owner/repo          Specify repository
+        -R owner/repo              Short form
+
+    Examples: >vim
+        :Gh issue view 123
+        :Gh issue view 123 --repo owner/repo
+<
+
+:Gh <args>                                                          *:Gh*
+    Passthrough to GitHub CLI. Executes asynchronously and populates
+    the quickfix list with results.
+
+    Examples: >vim
+        :Gh pr list
+        :Gh pr checks
+        :Gh repo view
+        :Gh run list
+<
+
+==============================================================================
+4. CONFIGURATION                                         *gh-configuration*
+
+Configuration is set via `vim.g.gh_opts` before the plugin loads.
+
+                                                                *g:gh_opts*
+g:gh_opts                       Global configuration table
+
+Default configuration: >lua
+    {
+      issue_detail = {
+        reuse_window = true,          -- Reuse existing issue detail window
+        split_direction = "horizontal" -- "horizontal" or "vertical"
+      }
+    }
+<
+
+Example: Open each issue in a new vertical split >lua
+    vim.g.gh_opts = {
+      issue_detail = {
+        reuse_window = false,
+        split_direction = "vertical",
+      }
+    }
+<
+
+Example: Reuse window with vertical splits >lua
+    vim.g.gh_opts = {
+      issue_detail = {
+        reuse_window = true,
+        split_direction = "vertical",
+      }
+    }
+<
+
+Note: Set `vim.g.gh_opts` before the plugin loads (e.g., in your init.lua
+or in lazy.nvim's `init` function).
+
+==============================================================================
+5. ISSUE LIST                                                 *gh-issue-list*
+
+The issue list buffer displays issues in an editable table format:
+>
+    # GitHub Issues (edit and :w to save)
+    # Format: #number │ STATE │ title
+    #123 │ OPEN │ Fix the navigation bug
+    #124 │ CLOSED │ Add dark mode support
+<
+
+Actions:
+- Edit titles directly in the buffer
+- Change state between OPEN/CLOSED
+- Press <CR> on an issue to open detail view
+- Press R to refresh the list
+- Press M to load more issues
+- Save with :w to sync changes to GitHub
+
+Auto-loading:
+Issues automatically load when you scroll near the bottom of the buffer.
+
+==============================================================================
+6. ISSUE DETAIL                                             *gh-issue-detail*
+
+The issue detail buffer shows the full issue with editable content:
+>markdown
+    # Issue title here
+    
+    Issue body in markdown format.
+    
+    You can edit both the title and body,
+    then save with :w to sync to GitHub.
+<
+
+Metadata Display:
+After the title, issue metadata is shown in virtual text:
+- State (OPEN/CLOSED)
+- Author
+- Labels
+- Assignees
+- Created/Updated dates
+- URL
+
+Actions:
+- Edit title (first line after #)
+- Edit body (everything after the blank line)
+- Press q to close
+- Press gx to open issue in browser
+- Save with :w to sync changes to GitHub
+- Reload with :e to refresh from GitHub
+
+==============================================================================
+7. KEYMAPS                                                       *gh-keymaps*
+
+Issue List Buffer:~
+    <CR>        Open issue detail view
+    R           Refresh issue list
+    M           Load more issues (manual)
+    :w          Save changes to GitHub
+
+Issue Detail Buffer:~
+    q           Close issue detail window
+    gx          Open issue in browser
+    :w          Save changes to GitHub
+    :e          Reload issue from GitHub
+
+==============================================================================
+8. API                                                               *gh-api*
+
+Lua API for advanced usage:
+
+gh.issues.open_issue_list({repo}, {opts})            *gh.issues.open_issue_list*
+    Open an issue list buffer.
+
+    Parameters: ~
+        {repo}  string|nil  Repository (owner/repo) or nil for current
+        {opts}  table|nil   Options table with fields:
+                            - state: "open"|"closed"|"all" (default: "open")
+                            - limit: number (default: window height)
+
+    Example: >lua
+        require("gh").issues.open_issue_list(nil, { state = "all" })
+<
+
+gh.issues.open_issue_detail({number}, {repo})       *gh.issues.open_issue_detail*
+    Open an issue detail buffer.
+
+    Parameters: ~
+        {number}  integer     Issue number
+        {repo}    string|nil  Repository (owner/repo) or nil for current
+
+    Example: >lua
+        require("gh").issues.open_issue_detail(123)
+<
+
+gh.cli.list_issues({repo}, {opts}, {callback})          *gh.cli.list_issues*
+    Fetch issues via GitHub CLI.
+
+    Parameters: ~
+        {repo}      string|nil  Repository or nil for current
+        {opts}      table|nil   Options (state, limit)
+        {callback}  function    Called with (success, issues, error)
+
+    Example: >lua
+        require("gh.cli").list_issues(nil, { state = "all" }, function(success, issues, error)
+          if success then
+            vim.print(issues)
+          end
+        end)
+<
+
+gh.cli.get_issue({number}, {repo}, {callback})             *gh.cli.get_issue*
+    Fetch a single issue via GitHub CLI.
+
+    Parameters: ~
+        {number}    integer     Issue number
+        {repo}      string|nil  Repository or nil for current
+        {callback}  function    Called with (success, issue, error)
+
+gh.cache                                                          *gh.cache*
+    In-memory cache with TTL support.
+
+    Functions:
+        gh.cache.read({key})                Get cached value
+        gh.cache.write({key}, {value})      Write to cache
+        gh.cache.is_valid({key}, {ttl})     Check if cache is valid
+        gh.cache.clear({key})               Clear cache entry
+        gh.cache.get_stats()                Get cache statistics
+
+    Example: >lua
+        local cache = require("gh.cache")
+        if cache.is_valid("my_key", 300) then
+          local data = cache.read("my_key")
+        end
+<
+
+==============================================================================
+9. LICENSE                                                       *gh-license*
+
+VIM License - see https://vimhelp.org/uganda.txt.html#license
+
+==============================================================================
+vim:tw=78:ts=8:ft=help:norl:

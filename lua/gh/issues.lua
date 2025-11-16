@@ -424,79 +424,18 @@ end
 ---@param bufnr integer Buffer number
 ---@param issue table Issue data
 local function add_issue_metadata_virtual_text(bufnr)
-  -- Create namespace for virtual text
-  local ns_id = vim.api.nvim_create_namespace("gh_issue_metadata")
-  
-  -- Clear existing virtual text
-  vim.api.nvim_buf_clear_namespace(bufnr, ns_id, 0, -1)
-  
   -- Get issue from buffer var
   local ok, issue = pcall(vim.api.nvim_buf_get_var, bufnr, "gh_original_issue")
   if not ok or not issue then
     return
   end
   
-  local virt_lines = {}
-  
-  -- State
-  if issue.state then
-    local state_text = issue.state:upper()
-    local state_hl = issue.state == "open" and "DiagnosticInfo" or "DiagnosticHint"
-    table.insert(virt_lines, { { "State: ", "Comment" }, { state_text, state_hl } })
-  end
-  
-  -- Author
-  if issue.author and issue.author.login then
-    table.insert(virt_lines, { { "Author: ", "Comment" }, { "@" .. issue.author.login, "Special" } })
-  end
-  
-  -- Labels
-  if issue.labels and #issue.labels > 0 then
-    local label_texts = {}
-    for _, label in ipairs(issue.labels) do
-      table.insert(label_texts, label.name)
-    end
-    table.insert(virt_lines, { { "Labels: ", "Comment" }, { table.concat(label_texts, ", "), "Tag" } })
-  end
-  
-  -- Assignees
-  if issue.assignees and #issue.assignees > 0 then
-    local assignee_texts = {}
-    for _, assignee in ipairs(issue.assignees) do
-      table.insert(assignee_texts, "@" .. assignee.login)
-    end
-    table.insert(virt_lines, { { "Assignees: ", "Comment" }, { table.concat(assignee_texts, ", "), "Special" } })
-  end
-  
-  -- Dates
-  if issue.createdAt then
-    local created = issue.createdAt:match("^%d%d%d%d%-%d%d%-%d%d")
-    table.insert(virt_lines, { { "Created: ", "Comment" }, { created or issue.createdAt, "Number" } })
-  end
-  
-  if issue.updatedAt then
-    local updated = issue.updatedAt:match("^%d%d%d%d%-%d%d%-%d%d")
-    table.insert(virt_lines, { { "Updated: ", "Comment" }, { updated or issue.updatedAt, "Number" } })
-  end
-  
-  -- URL
-  if issue.url then
-    table.insert(virt_lines, { { "URL: ", "Comment" }, { issue.url, "Underlined" } })
-  end
-  
-  -- Add virtual text after line 1 (title line)
-  if #virt_lines > 0 then
-    -- Add empty line for spacing after metadata
-    table.insert(virt_lines, { { "", "Normal" } })
-    
-    vim.api.nvim_buf_set_extmark(bufnr, ns_id, 1, 0, {
-      virt_lines = virt_lines,
-      virt_lines_above = false,
-    })
-  end
+  -- Use the new render module for Snacks-style rendering
+  local render = require("gh.render")
+  render.render_metadata(bufnr, issue)
 end
 
---- Open issue detail buffer
+--- Open issue detail buffer for editing
 ---@param number integer Issue number
 ---@param repo string|nil Repository (owner/repo) or nil for current repo
 function M.open_issue_detail(number, repo)
@@ -600,7 +539,7 @@ function M.open_issue_detail(number, repo)
     local config = require("gh.config")
     buffer.open_smart(bufnr, {
       reuse_window = config.opts.issue_detail.reuse_window,
-      vertical = config.opts.issue_detail.split_direction == "vertical",
+      split_direction = config.opts.issue_detail.split_direction,
     })
     
     -- Set filetype

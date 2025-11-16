@@ -10,6 +10,11 @@ vim.g.gh_opts = vim.g.gh_opts
 
 ---@class gh.Opts
 ---
+---Data source for GitHub API calls
+---  - "api": Use GraphQL API via gh api (fast, recommended)
+---  - "json": Use gh CLI with JSON output via plenary jobs
+---@field data_source? "api"|"json"
+---
 ---Options for issue detail view behavior
 ---@field issue_detail? gh.IssueDetailOpts
 
@@ -21,14 +26,18 @@ vim.g.gh_opts = vim.g.gh_opts
 ---@field reuse_window? boolean
 ---
 ---Split direction for issue detail windows.
----@field split_direction? "horizontal"|"vertical"
+---  - "auto": Automatically choose based on window width (vertical if wide, horizontal otherwise)
+---  - "horizontal": Always split horizontally
+---  - "vertical": Always split vertically
+---@field split_direction? "auto"|"horizontal"|"vertical"
 
 ---Default configuration
 ---@type gh.Opts
 local defaults = {
+  data_source = "json",  -- Use JSON output via gh CLI (reliable)
   issue_detail = {
     reuse_window = true,
-    split_direction = "horizontal",
+    split_direction = "auto",  -- Auto-detect based on window width
   },
 }
 

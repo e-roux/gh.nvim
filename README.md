@@ -4,44 +4,46 @@
 
 Neovim integration for GitHub CLI (`gh`).
 
-## Design Goals
-
-**Keep it simple.** For advanced GitHub features, use the browser. This plugin focuses on:
-- Basic issue viewing and editing
-- Quick access from Neovim
-- Seamless sync via `gh` CLI
-- No complex UI, just text buffers
-
 ## Overview
 
-This plugin provides Neovim utilities for working with the GitHub CLI, including:
-- Oil.nvim-style buffer editing for issues
-- Virtual text for issue metadata (labels, assignees, state, dates)
-- Async command execution
+Neovim utilities for working with the GitHub CLI, focusing on basic issue/PR viewing and editing with quick access from your editor.
+
+**Features:**
+- **Issue/PR browsing:** Buffer-based lists with Oil-style editing
+- **Issue editing:** Text buffer editing with seamless sync via `gh` CLI
+- Async command execution via GraphQL or JSON
 - In-memory caching with TTL
 - Command completion
-- Issue/PR (plan) management utilities
 
-## Structure
-
-```
-gh.nvim/
-├── lua/gh/
-│   ├── init.lua       # Main module entry point
-│   ├── config.lua     # Configuration module
-│   ├── buffer.lua     # Buffer management utilities
-│   ├── cache.lua      # In-memory caching with TTL support
-│   ├── cli.lua        # GitHub CLI wrapper functions
-│   ├── issues.lua     # Issue buffer editing
-│   └── types.lua      # Type definitions
-├── plugin/
-│   └── gh.lua         # Plugin initialization & commands
-├── test/              # Unit tests
-├── examples/          # Example scripts and demos
-└── README.md
-```
+**Inspired by:** [Snacks.nvim](https://github.com/folke/snacks.nvim) rendering style
 
 ## Features
+
+### Data Source
+
+gh.nvim supports two modes for fetching GitHub data:
+
+- **`"json"`** (default): Uses `gh` CLI with JSON output
+  - More reliable, works everywhere `gh` works
+  - Slightly slower due to JSON parsing
+  
+- **`"api"`**: Uses GraphQL API via `gh api graphql`
+  - Faster data fetching
+  - More efficient for large datasets
+
+**Configuration Example:**
+
+```lua
+vim.g.gh_opts = {
+  data_source = "json",  -- or "api"
+  issue_detail = {
+    reuse_window = true,
+    split_direction = "auto",  -- "auto", "horizontal", or "vertical"
+  }
+}
+```
+
+See [Configuration](#configuration) section for all available options.
 
 ### Issue List View
 
@@ -89,12 +91,12 @@ then save with :w to sync to GitHub.
 ```
 
 **Metadata Display (Virtual Text):**
-After the title, you'll see issue metadata in virtual text:
-- State (OPEN/CLOSED)
+After the title, you'll see issue metadata rendered as virtual text with badges and colors:
+- State (OPEN/CLOSED) with badges
 - Author
-- Labels
+- Labels with color-coded badges
 - Assignees
-- Created/Updated dates
+- Created/Updated dates (relative time)
 - URL
 
 **Actions:**
@@ -164,10 +166,21 @@ end)
 
 ### Other GitHub Commands
 
+#### Pull Request Support
+
+**Pull request commands:**
+```vim
+:Gh pr list                           " List pull requests (not yet implemented)
+:Gh pr view 456                       " View/edit PR #456 (not yet implemented)
+```
+
+**Note:** PR support is planned for a future release.
+
+#### GitHub CLI Passthrough
+
 The `:Gh` command also acts as a passthrough to the GitHub CLI:
 
 ```vim
-:Gh pr list
 :Gh pr checks
 :Gh repo view
 :Gh run list
@@ -177,6 +190,7 @@ These commands execute asynchronously and populate the quickfix list with result
 
 ## Dependencies
 
+### Required
 - [plenary.nvim](https://github.com/nvim-lua/plenary.nvim) - For async job execution
 - [gh](https://cli.github.com/) - GitHub CLI
 
@@ -193,17 +207,15 @@ These commands execute asynchronously and populate the quickfix list with result
 ```lua
 {
   "e-roux/gh.nvim",
-  dependencies = { "nvim-lua/plenary.nvim" },
-  init = function()
-    -- Set options before plugin loads
-    vim.g.gh_opts = {
-      issue_detail = {
-        reuse_window = true,
-        split_direction = "horizontal",
-      }
-    }
-  end,
+  dependencies = {
+    "nvim-lua/plenary.nvim",
+  },
 }
+```
+
+Add to your `init.lua`:
+```lua
+vim.g.gh_opts = {}  -- Use defaults, or pass custom config (see Configuration)
 ```
 
 ### Using packer.nvim
@@ -211,36 +223,18 @@ These commands execute asynchronously and populate the quickfix list with result
 ```lua
 use {
   "e-roux/gh.nvim",
-  requires = { "nvim-lua/plenary.nvim" },
-  config = function()
-    vim.g.gh_opts = {
-      issue_detail = {
-        reuse_window = true,
-        split_direction = "horizontal",
-      }
-    }
-  end,
+  requires = { 
+    "nvim-lua/plenary.nvim",
+  },
 }
 ```
 
-### Using vim-plug
-
-```vim
-Plug 'nvim-lua/plenary.nvim'
-Plug 'e-roux/gh.nvim'
-```
-
-Then in your `init.lua`:
+Add to your `init.lua`:
 ```lua
-vim.g.gh_opts = {
-  issue_detail = {
-    reuse_window = true,
-    split_direction = "horizontal",
-  }
-}
+vim.g.gh_opts = {}  -- Use defaults, or pass custom config (see Configuration)
 ```
 
-### Manual Installation
+### Manual Installation (for Neovim < 0.12)
 
 1. Clone this repository to your Neovim config directory:
    ```bash
@@ -249,7 +243,12 @@ vim.g.gh_opts = {
 
 2. Install plenary.nvim if not already installed
 
-3. Ensure `gh` CLI is installed and authenticated:
+3. Add to your `init.lua`:
+   ```lua
+   vim.g.gh_opts = {}  -- Use defaults, or pass custom config (see Configuration)
+   ```
+
+4. Ensure `gh` CLI is installed and authenticated:
    ```bash
    gh auth login
    ```
@@ -258,42 +257,30 @@ vim.g.gh_opts = {
 
 Configuration is passed via `vim.g.gh_opts` and automatically merged with defaults when the plugin loads.
 
-### Default Configuration
-
-```lua
-{
-  issue_detail = {
-    reuse_window = true,          -- Reuse existing issue detail window
-    split_direction = "horizontal" -- "horizontal" or "vertical"
-  }
-}
-```
-
-### Configuration Examples
-
-**Example 1: Open each issue in a new vertical split**
-
 ```lua
 vim.g.gh_opts = {
+  -- Data source for GitHub API calls
+  -- "json" (default): Uses gh CLI with JSON output (reliable)
+  -- "api": Uses GraphQL API via gh api (faster)
+  data_source = "json",
+  
+  -- Issue detail view options
   issue_detail = {
-    reuse_window = false,
-    split_direction = "vertical",
+    reuse_window = true,           -- Reuse existing issue detail window
+                                   -- When true: opening a new issue replaces the current issue detail window
+                                   -- When false: each issue opens in a new split
+    split_direction = "auto"       -- Split direction for issue detail windows:
+                                   -- "auto" (default): Automatically choose based on window width
+                                   --                   (vertical if width >= 120 columns, horizontal otherwise)
+                                   -- "horizontal": Always split horizontally
+                                   -- "vertical": Always split vertically
   }
 }
 ```
 
-**Example 2: Reuse window with vertical splits**
-
-```lua
-vim.g.gh_opts = {
-  issue_detail = {
-    reuse_window = true,
-    split_direction = "vertical",
-  }
-}
-```
-
-**Important:** Set `vim.g.gh_opts` **before** the plugin loads (e.g., in your `init.lua` or before calling `require("gh")`).
+**Important:** 
+- Set `vim.g.gh_opts` **before** the plugin loads (e.g., in your `init.lua`)
+- PR support is planned for a future release
 
 ### Why Global Variables?
 
@@ -312,25 +299,15 @@ local config = require("gh.config")
 print(vim.inspect(config.opts))
 ```
 
-## Design Principles
-
-1. **Simplicity over features** - Only implement what makes sense in a text editor
-2. **Robust over fancy** - Prefer simple, tested code over complex UI
-3. **Browser for complex tasks** - Labels, assignees, reviews → use GitHub web UI
-4. **Text-first** - Everything is just text buffers, familiar to Vim users
-
 ## Future Plans
 
-- [ ] Basic PR viewing (read-only)
+- [x] Issue list viewing and editing
+- [x] Issue detail viewing and editing  
+- [x] Virtual text metadata display with badges
+- [ ] Pull request support
 - [ ] Issue creation from template
 - [ ] Better error messages
 - [ ] More tests
-
-**Not Planned:**
-- Complex PR review UI (use browser)
-- Label/assignee editing (use browser) 
-- Advanced filtering/searching (use `gh` CLI directly)
-- Notifications (use browser or `gh` CLI)
 
 ## License
 

@@ -75,11 +75,11 @@ end
 
 --- Open buffer, optionally reusing an existing issue detail window
 ---@param bufnr integer Buffer number
----@param opts table|nil Options: { reuse_window: boolean, vertical: boolean }
+---@param opts table|nil Options: { reuse_window: boolean, split_direction: "auto"|"horizontal"|"vertical" }
 function M.open_smart(bufnr, opts)
   opts = opts or {}
   local reuse = opts.reuse_window
-  local vertical = opts.vertical
+  local split_direction = opts.split_direction or "horizontal"
   
   if reuse then
     -- Try to find and reuse an existing issue detail window
@@ -89,6 +89,17 @@ function M.open_smart(bufnr, opts)
       vim.api.nvim_set_current_buf(bufnr)
       return
     end
+  end
+  
+  -- Determine vertical split based on split_direction
+  local vertical = false
+  if split_direction == "auto" then
+    -- Auto-detect: use vertical if window is wide (panorama mode)
+    -- Threshold: 120 columns is a reasonable cutoff for panorama
+    local width = vim.api.nvim_win_get_width(0)
+    vertical = width >= 120
+  elseif split_direction == "vertical" then
+    vertical = true
   end
   
   -- No existing window to reuse, open in split

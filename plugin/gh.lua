@@ -79,6 +79,19 @@ local function gh_command(opts)
     end
   end
   
+  -- Check if this is a pr subcommand
+  if args[1] == "pr" then
+    if args[2] == "list" or args[2] == "ls" then
+      -- PR list not yet implemented in buffer mode
+      vim.notify("PR list not yet implemented. Use: gh pr list", vim.log.levels.WARN)
+      return
+    elseif args[2] == "view" then
+      -- PR detail not yet implemented
+      vim.notify("PR detail not yet implemented. Use: gh pr view", vim.log.levels.WARN)
+      return
+    end
+  end
+  
   -- Default: passthrough to gh CLI and populate quickfix list
   Job:new({
     command = GH,
@@ -163,6 +176,39 @@ local function gh_complete(arg_lead, cmd_line, cursor_pos)
   
   -- Flag completion for issue view command
   if args[1] == "issue" and args[2] == "view" then
+    -- Complete flags
+    if vim.startswith(arg_lead, "-") then
+      local candidates = { "--repo", "-R" }
+      return vim.tbl_filter(function(item)
+        return vim.startswith(item, arg_lead)
+      end, candidates)
+    end
+  end
+  
+  -- Flag completion for pr list command
+  if args[1] == "pr" and (args[2] == "list" or args[2] == "ls") then
+    -- Check if previous arg is a flag that expects a value
+    local prev_arg = #args > 0 and args[#args] or nil
+    
+    -- Complete state values after --state or -s
+    if prev_arg == "--state" or prev_arg == "-s" then
+      local candidates = { "open", "closed", "merged", "all" }
+      return vim.tbl_filter(function(item)
+        return vim.startswith(item, arg_lead)
+      end, candidates)
+    end
+    
+    -- Complete flags
+    if vim.startswith(arg_lead, "-") then
+      local candidates = { "--state", "-s", "--limit", "-L", "--repo", "-R" }
+      return vim.tbl_filter(function(item)
+        return vim.startswith(item, arg_lead)
+      end, candidates)
+    end
+  end
+  
+  -- Flag completion for pr view command
+  if args[1] == "pr" and args[2] == "view" then
     -- Complete flags
     if vim.startswith(arg_lead, "-") then
       local candidates = { "--repo", "-R" }
