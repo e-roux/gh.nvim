@@ -28,20 +28,62 @@ M.is_updating_buffer = false
 
 --- Filter definitions with line numbers and labels
 M.FILTERS = {
-  { line = 1, key = "state", label = "◉ State", placeholder = "OPEN | CLOSED | ALL" },
-  { line = 2, key = "assignee", label = "👤 Assignee", placeholder = "@username or leave empty" },
-  { line = 3, key = "author", label = "✍ Author", placeholder = "@username or leave empty" },
-  { line = 4, key = "label", label = "🏷 Label", placeholder = "bug, enhancement, ... (comma-separated)" },
-  { line = 5, key = "mention", label = "@ Mention", placeholder = "@username or leave empty" },
-  { line = 6, key = "milestone", label = "🚩 Milestone", placeholder = "milestone name or leave empty" },
-  { line = 7, key = "search", label = "🔍 Search", placeholder = "search query or leave empty" },
+  {
+    line = 2,
+    key = "state",
+    keymap = "s",
+    label = "◉ State",
+    placeholder = "OPEN | CLOSED | ALL",
+  },
+  {
+    line = 3,
+    key = "assignee",
+    keymap = "a",
+    label = "👤 Assignee",
+    placeholder = "@username or leave empty",
+  },
+  {
+    line = 4,
+    key = "author",
+    keymap = "u",
+    label = "✍ Author",
+    placeholder = "@username or leave empty",
+  },
+  {
+    line = 5,
+    key = "label",
+    keymap = "l",
+    label = "🏷 Label",
+    placeholder = "bug, enhancement, ... (comma-separated)",
+  },
+  {
+    line = 6,
+    key = "mention",
+    keymap = "m",
+    label = "@ Mention",
+    placeholder = "@username or leave empty",
+  },
+  {
+    line = 7,
+    key = "milestone",
+    keymap = "t",
+    label = "🚩 Milestone",
+    placeholder = "milestone name or leave empty",
+  },
+  {
+    line = 8,
+    key = "search",
+    keymap = "/",
+    label = "🔍 Search",
+    placeholder = "search query or leave empty",
+  },
 }
 
 --- Number of filter lines
 M.FILTER_LINE_COUNT = #M.FILTERS
 
---- First line after filters where issues start (1-indexed)
-M.FIRST_ISSUE_LINE = M.FILTER_LINE_COUNT + 1
+--- First line after filters where issues start (1-indexed, accounting for header line)
+M.FIRST_ISSUE_LINE = M.FILTER_LINE_COUNT + 2 -- +1 for header, +1 for 1-indexed
 
 --- Parse filter lines from buffer and build filter context
 ---@param bufnr integer Buffer number
@@ -248,7 +290,38 @@ end
 ---@param bufnr integer Buffer number
 function M.update_filter_display(bufnr)
   -- Clear existing virtual text
-  vim.api.nvim_buf_clear_namespace(bufnr, M.namespace, 0, -1)
+  local total_lines = vim.api.nvim_buf_line_count(bufnr)
+  vim.api.nvim_buf_clear_namespace(bufnr, M.namespace, 0, total_lines)
+
+  -- Add help line as overlay on line 1 (0-indexed line 0)
+  local localleader = vim.g.maplocalleader or "\\"
+
+  local help_virt_text = {}
+  for i, filter in ipairs(M.FILTERS) do
+    -- Add filter name in normal color (strip emoji)
+    local filter_name = filter.label:match("^[%s%p]*(.+)$") or filter.label
+    filter_name = filter_name:gsub("^%s+", ""):gsub("%s+$", "")
+    table.insert(help_virt_text, { filter_name, "Normal" })
+    table.insert(help_virt_text, { " ", "Normal" })
+    table.insert(help_virt_text, { localleader .. filter.keymap, "Cyan" })
+
+    if i < #M.FILTERS then
+      table.insert(help_virt_text, { "  ", "Normal" })
+    end
+  end
+
+  -- Add help text as overlay on line 1 (0-indexed: 0)
+  vim.api.nvim_buf_set_extmark(bufnr, M.namespace, 0, 0, {
+    virt_text = help_virt_text,
+    virt_text_pos = "overlay",
+  })
+
+  -- Add empty virtual line after header for spacing
+  vim.api.nvim_buf_set_extmark(bufnr, M.namespace, 0, 0, {
+    virt_lines = {
+      {}, -- Empty line for spacing
+    },
+  })
 
   -- Add labels and placeholders for each filter line
   for i, filter in ipairs(M.FILTERS) do
@@ -281,7 +354,9 @@ function M.update_filter_display(bufnr)
   end
 
   -- Show horizontal rule below the last filter line
-  local last_filter_line = M.FILTER_LINE_COUNT - 1 -- 0-indexed
+  -- Last filter line is M.FILTERS[#M.FILTERS].line, convert to 0-indexed
+  local last_filter_line = M.FILTERS[#M.FILTERS].line - 1
+
   vim.api.nvim_buf_set_extmark(bufnr, M.namespace, last_filter_line, 0, {
     virt_lines = {
       {
@@ -318,6 +393,33 @@ function M.update_filter_display(bufnr)
   end
 end
 
+--- Set up keymaps to jump to filter fields
+---@param bufnr integer Buffer number
+function M.setup_filter_keymaps(bufnr)
+  local buffer_module = require("gh.buffer")
+  local keymaps = {}
+
+  for _, filter in ipairs(M.FILTERS) do
+    local key = "<localleader>" .. filter.keymap
+    keymaps[key] = {
+      callback = function()
+        -- Jump to the filter line and enter insert mode at the correct position
+        local line_num = filter.line
+        local target_col = vim.fn.strlen(filter.label) + vim.fn.strlen(":  ")
+
+        -- Move cursor to the line
+        vim.api.nvim_win_set_cursor(0, { line_num, target_col })
+
+        -- Enter insert mode
+        vim.cmd("startinsert")
+      end,
+      desc = string.format("Jump to %s filter", filter.key),
+    }
+  end
+
+  buffer_module.set_keymaps(bufnr, keymaps)
+end
+
 --- Set up auto-filter on text change for filter input line
 ---@param bufnr integer Buffer number
 function M.setup_auto_filter(bufnr)
@@ -347,28 +449,33 @@ function M.setup_auto_filter(bufnr)
     local line_num = cursor[1]
     local col = cursor[2]
 
-    -- Check if we're on a filter line
-    if line_num >= 1 and line_num <= M.FILTER_LINE_COUNT then
-      local filter = M.FILTERS[line_num]
-      if filter then
-        local lines = vim.api.nvim_buf_get_lines(bufnr, line_num - 1, line_num, false)
-        local current_text = lines[1] or ""
-        local is_empty = current_text:match("^%s*$") ~= nil
+    -- Check if we're on a filter line (lines 2-8, since line 1 is header)
+    local filter = nil
+    for _, f in ipairs(M.FILTERS) do
+      if f.line == line_num then
+        filter = f
+        break
+      end
+    end
 
-        -- If line is empty, position cursor at n+2 (after label + ": " + space)
-        if is_empty then
-          -- n = display width of label (not byte length!)
-          -- Use strdisplaywidth for multi-byte characters like ∴
-          local n = vim.fn.strdisplaywidth(filter.label)
-          -- Cursor position is in bytes, so we need to convert
-          -- n+2 display positions = strlen(label) + strlen(": ")
-          local target_col = vim.fn.strlen(filter.label) + vim.fn.strlen(":  ")
-          if col ~= target_col then
-            vim.api.nvim_win_set_cursor(0, { line_num, target_col })
-          end
+    if filter then
+      local lines = vim.api.nvim_buf_get_lines(bufnr, line_num - 1, line_num, false)
+      local current_text = lines[1] or ""
+      local is_empty = current_text:match("^%s*$") ~= nil
+
+      -- If line is empty, position cursor at n+2 (after label + ": " + space)
+      if is_empty then
+        -- n = display width of label (not byte length!)
+        -- Use strdisplaywidth for multi-byte characters like ∴
+        local n = vim.fn.strdisplaywidth(filter.label)
+        -- Cursor position is in bytes, so we need to convert
+        -- n+2 display positions = strlen(label) + strlen(": ")
+        local target_col = vim.fn.strlen(filter.label) + vim.fn.strlen(":  ")
+        if col ~= target_col then
+          vim.api.nvim_win_set_cursor(0, { line_num, target_col })
         end
       end
-    elseif line_num > M.FILTER_LINE_COUNT then
+    elseif line_num > M.FIRST_ISSUE_LINE - 1 then
       -- We're on an issue line - only reposition in insert mode
       local mode = vim.api.nvim_get_mode().mode
       if mode == "i" or mode == "R" then
@@ -398,7 +505,6 @@ function M.setup_auto_filter(bufnr)
       if M.is_updating_buffer then
         return
       end
-      print("update")
 
       -- Skip if initial setup is not complete (prevents autocmd from firing during buffer creation)
       if not initial_setup_complete then
@@ -450,13 +556,28 @@ function M.setup_auto_filter(bufnr)
       -- Update virtual text display (to show/hide placeholders)
       M.update_filter_display(bufnr)
 
+      local cursor = vim.api.nvim_win_get_cursor(0)
+      local line_num = cursor[1]
+      local col = cursor[2]
+
+      -- Prevent cursor from being on line 1 (help line)
+      if line_num == 1 then
+        -- Move to first filter line
+        local first_filter = M.FILTERS[1]
+        local target_col = vim.fn.strlen(first_filter.label) + vim.fn.strlen(":  ")
+        vim.cmd(
+          string.format(
+            "noautocmd call nvim_win_set_cursor(0, [%d, %d])",
+            first_filter.line,
+            target_col
+          )
+        )
+        return
+      end
+
       -- In normal mode, auto-position cursor at n+2 on empty filter lines
       local mode = vim.api.nvim_get_mode().mode
       if mode == "n" or mode == "v" or mode == "V" then
-        local cursor = vim.api.nvim_win_get_cursor(0)
-        local line_num = cursor[1]
-        local col = cursor[2]
-
         -- Check if we're on a filter line
         if line_num >= 1 and line_num <= M.FILTER_LINE_COUNT then
           local filter = M.FILTERS[line_num]
@@ -514,7 +635,10 @@ function M.setup_auto_filter(bufnr)
   -- Initial display update and cursor positioning
   M.update_filter_display(bufnr)
   vim.schedule(function()
-    position_cursor()
+    -- Position cursor on the first filter field (State) at column 0
+    local first_filter = M.FILTERS[1]
+    vim.api.nvim_win_set_cursor(0, { first_filter.line, 0 })
+
     -- Initialize last filter state
     last_filter_state = get_filter_state()
     -- Mark setup as complete after initial positioning

@@ -364,6 +364,7 @@ function M.open_issue_list(repo, opts)
       -- Set up inline filter UI with auto-update
       local filter_ui = require("gh.filter")
       filter_ui.setup_auto_filter(bufnr)
+      filter_ui.setup_filter_keymaps(bufnr)
       
       -- Set up auto-load on scroll to bottom
       vim.api.nvim_create_autocmd("CursorMoved", {

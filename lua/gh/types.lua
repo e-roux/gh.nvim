@@ -581,9 +581,11 @@ function IssueCollection:format_list(filter_context)
   -- Load filter definitions to get label widths
   local filter_ui = require("gh.filter")
   
+  -- Start with an empty header line (line 0) for help text virtual overlay
+  local lines = { "" }
+  
   -- Create filter input lines (7 lines for all filter types)
   -- Pre-fill with spaces to position cursor after virtual label
-  local lines = {}
   for _, filter in ipairs(filter_ui.FILTERS) do
     local value = ""
     
