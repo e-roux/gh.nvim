@@ -48,8 +48,9 @@ local function parse_issue_list_changes(lines, collection)
   local changes = {}
   local errors = {}
   
-  -- Skip header lines (first 2 lines)
-  for i = 3, #lines do
+  -- Skip filter line (line 1), start from line 2 where issues begin
+  -- Note: horizontal rule is now a virtual line, not in buffer
+  for i = 2, #lines do
     local line = lines[i]
     if line and line ~= "" then
       -- Parse format: "#123 │ OPEN │ Issue title here"
@@ -319,113 +320,11 @@ function M.open_issue_list(repo, opts)
           end,
           desc = "Load more issues (window height)",
         },
-        ["S"] = {
-          callback = function()
-            local sort_ui = require("gh.sort")
-            sort_ui.show_sort_menu(bufnr, function(sorted_collection)
-              if sorted_collection then
-                -- Update buffer with sorted issues
-                local sorted_lines = sorted_collection:format_list()
-                buffer.set_lines(bufnr, sorted_lines)
-                -- Update stored collection
-                vim.api.nvim_buf_set_var(bufnr, "gh_issues_collection", sorted_collection:to_table())
-              end
-            end)
-          end,
-          desc = "Sort issues (interactive menu)",
-        },
-        ["sn"] = {
-          callback = function()
-            local sort_ui = require("gh.sort")
-            sort_ui.quick_sort(bufnr, "number", function(sorted_collection)
-              if sorted_collection then
-                local sorted_lines = sorted_collection:format_list()
-                buffer.set_lines(bufnr, sorted_lines)
-                vim.api.nvim_buf_set_var(bufnr, "gh_issues_collection", sorted_collection:to_table())
-              end
-            end)
-          end,
-          desc = "Sort by number",
-        },
-        ["st"] = {
-          callback = function()
-            local sort_ui = require("gh.sort")
-            sort_ui.quick_sort(bufnr, "title", function(sorted_collection)
-              if sorted_collection then
-                local sorted_lines = sorted_collection:format_list()
-                buffer.set_lines(bufnr, sorted_lines)
-                vim.api.nvim_buf_set_var(bufnr, "gh_issues_collection", sorted_collection:to_table())
-              end
-            end)
-          end,
-          desc = "Sort by title",
-        },
-        ["ss"] = {
-          callback = function()
-            local sort_ui = require("gh.sort")
-            sort_ui.quick_sort(bufnr, "state", function(sorted_collection)
-              if sorted_collection then
-                local sorted_lines = sorted_collection:format_list()
-                buffer.set_lines(bufnr, sorted_lines)
-                vim.api.nvim_buf_set_var(bufnr, "gh_issues_collection", sorted_collection:to_table())
-              end
-            end)
-          end,
-          desc = "Sort by state",
-        },
-        ["sa"] = {
-          callback = function()
-            local sort_ui = require("gh.sort")
-            sort_ui.quick_sort(bufnr, "author", function(sorted_collection)
-              if sorted_collection then
-                local sorted_lines = sorted_collection:format_list()
-                buffer.set_lines(bufnr, sorted_lines)
-                vim.api.nvim_buf_set_var(bufnr, "gh_issues_collection", sorted_collection:to_table())
-              end
-            end)
-          end,
-          desc = "Sort by author",
-        },
-        ["sc"] = {
-          callback = function()
-            local sort_ui = require("gh.sort")
-            sort_ui.quick_sort(bufnr, "created", function(sorted_collection)
-              if sorted_collection then
-                local sorted_lines = sorted_collection:format_list()
-                buffer.set_lines(bufnr, sorted_lines)
-                vim.api.nvim_buf_set_var(bufnr, "gh_issues_collection", sorted_collection:to_table())
-              end
-            end)
-          end,
-          desc = "Sort by created date",
-        },
-        ["su"] = {
-          callback = function()
-            local sort_ui = require("gh.sort")
-            sort_ui.quick_sort(bufnr, "updated", function(sorted_collection)
-              if sorted_collection then
-                local sorted_lines = sorted_collection:format_list()
-                buffer.set_lines(bufnr, sorted_lines)
-                vim.api.nvim_buf_set_var(bufnr, "gh_issues_collection", sorted_collection:to_table())
-              end
-            end)
-          end,
-          desc = "Sort by updated date",
-        },
-        ["sl"] = {
-          callback = function()
-            local sort_ui = require("gh.sort")
-            sort_ui.quick_sort(bufnr, "labels", function(sorted_collection)
-              if sorted_collection then
-                local sorted_lines = sorted_collection:format_list()
-                buffer.set_lines(bufnr, sorted_lines)
-                vim.api.nvim_buf_set_var(bufnr, "gh_issues_collection", sorted_collection:to_table())
-              end
-            end)
-          end,
-          desc = "Sort by label count",
-        },
       })
+      
+      -- Set up inline filter UI with auto-update
+      local filter_ui = require("gh.filter")
+      filter_ui.setup_auto_filter(bufnr)
       
       -- Set up auto-load on scroll to bottom
       vim.api.nvim_create_autocmd("CursorMoved", {
@@ -818,8 +717,6 @@ function M.setup_autocmds()
 end
 
 -- Export for testing
-if vim.env.PLENARY_TEST then
-  M._test_parse_issue_list_changes = parse_issue_list_changes
-end
+M._test_parse_issue_list_changes = parse_issue_list_changes
 
 return M

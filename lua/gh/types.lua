@@ -570,10 +570,11 @@ end
 
 --- Format collection for list view
 ---@return string[]
+--- Format issues as list
+---@return string[]
 function IssueCollection:format_list()
   local lines = {
-    "# GitHub Issues (edit and :w to save)",
-    "# Format: #number │ STATE │ title",
+    "",  -- Filter input line (with virtual lines before/after via extmarks)
   }
   
   for _, issue in ipairs(self.issues) do

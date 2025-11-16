@@ -17,13 +17,12 @@ describe("gh.issues", function()
     it("formats issue list correctly", function()
       local lines = collection:format_list()
       
-      assert.equals(6, #lines) -- 2 header lines + 4 issues
-      assert.equals("# GitHub Issues (edit and :w to save)", lines[1])
-      assert.equals("# Format: #number │ STATE │ title", lines[2])
-      assert.equals("#1 │ OPEN │ Add dark mode support", lines[3])
-      assert.equals("#2 │ OPEN │ Fix navigation bug in sidebar", lines[4])
-      assert.equals("#3 │ CLOSED │ Update documentation", lines[5])
-      assert.equals("#42 │ OPEN │ Refactor authentication module", lines[6])
+      assert.equals(5, #lines) -- 1 filter line + 4 issues (horizontal rule is virtual)
+      assert.equals("", lines[1]) -- Filter input line
+      assert.equals("#1 │ OPEN │ Add dark mode support", lines[2])
+      assert.equals("#2 │ OPEN │ Fix navigation bug in sidebar", lines[3])
+      assert.equals("#3 │ CLOSED │ Update documentation", lines[4])
+      assert.equals("#42 │ OPEN │ Refactor authentication module", lines[5])
     end)
 
     it("detects no changes when buffer is unchanged", function()
@@ -31,7 +30,7 @@ describe("gh.issues", function()
       
       -- Parse the unchanged buffer back
       local changes = {}
-      for i = 3, #original_lines do
+      for i = 2, #original_lines do
         local line = original_lines[i]
         local number, state, title = line:match("^#(%d+)%s+│%s+(%w+)%s+│%s+(.+)%s*$")
         if number then
@@ -51,12 +50,12 @@ describe("gh.issues", function()
     it("detects title change", function()
       local lines = collection:format_list()
       
-      -- Modify issue #1 title
-      lines[3] = "#1 │ OPEN │ Add dark mode with auto-detection"
+      -- Modify issue #1 title (now on line 2)
+      lines[2] = "#1 │ OPEN │ Add dark mode with auto-detection"
       
       -- Parse changes
       local changes = {}
-      for i = 3, #lines do
+      for i = 2, #lines do
         local line = lines[i]
         local number, state, title = line:match("^#(%d+)%s+│%s+(%w+)%s+│%s+(.+)%s*$")
         if number then
@@ -86,12 +85,12 @@ describe("gh.issues", function()
     it("detects state change", function()
       local lines = collection:format_list()
       
-      -- Change issue #1 from OPEN to CLOSED
-      lines[3] = "#1 │ CLOSED │ Add dark mode support"
+      -- Change issue #1 from OPEN to CLOSED (now on line 2)
+      lines[2] = "#1 │ CLOSED │ Add dark mode support"
       
       -- Parse changes
       local changes = {}
-      for i = 3, #lines do
+      for i = 2, #lines do
         local line = lines[i]
         local number, state, title = line:match("^#(%d+)%s+│%s+(%w+)%s+│%s+(.+)%s*$")
         if number then
@@ -122,11 +121,11 @@ describe("gh.issues", function()
       local lines = collection:format_list()
       
       -- Change both title and state for issue #2
-      lines[4] = "#2 │ CLOSED │ Fixed navigation bug in sidebar"
+      lines[3] = "#2 │ CLOSED │ Fixed navigation bug in sidebar"
       
       -- Parse changes
       local changes = {}
-      for i = 3, #lines do
+      for i = 2, #lines do
         local line = lines[i]
         local number, state, title = line:match("^#(%d+)%s+│%s+(%w+)%s+│%s+(.+)%s*$")
         if number then
@@ -157,13 +156,13 @@ describe("gh.issues", function()
       local lines = collection:format_list()
       
       -- Change multiple issues
-      lines[3] = "#1 │ OPEN │ Dark mode implementation"
-      lines[4] = "#2 │ CLOSED │ Fix navigation bug in sidebar"
-      lines[6] = "#42 │ CLOSED │ Refactor authentication module"
+      lines[2] = "#1 │ OPEN │ Dark mode implementation"
+      lines[3] = "#2 │ CLOSED │ Fix navigation bug in sidebar"
+      lines[5] = "#42 │ CLOSED │ Refactor authentication module"
       
       -- Parse changes
       local changes = {}
-      for i = 3, #lines do
+      for i = 2, #lines do
         local line = lines[i]
         local number, state, title = line:match("^#(%d+)%s+│%s+(%w+)%s+│%s+(.+)%s*$")
         if number then
@@ -201,7 +200,7 @@ describe("gh.issues", function()
       
       -- Parse changes
       local changes = {}
-      for i = 3, #lines do
+      for i = 2, #lines do
         local line = lines[i]
         if line and line ~= "" then
           local number, state, title = line:match("^#(%d+)%s+│%s+(%w+)%s+│%s+(.+)%s*$")
@@ -236,7 +235,7 @@ describe("gh.issues", function()
       
       -- Parse changes
       local changes = {}
-      for i = 3, #lines do
+      for i = 2, #lines do
         local line = lines[i]
         if line and line ~= "" then
           local number, state, title = line:match("^#(%d+)%s+│%s+(%w+)%s+│%s+(.+)%s*$")
@@ -267,7 +266,7 @@ describe("gh.issues", function()
       local lines = collection:format_list()
       
       -- Change state to invalid value
-      lines[3] = "#1 │ FOO │ Add dark mode support"
+      lines[2] = "#1 │ FOO │ Add dark mode support"
       
       -- Call the actual parse function
       local changes, error = issues._test_parse_issue_list_changes(lines, collection)
@@ -283,8 +282,8 @@ describe("gh.issues", function()
       local lines = collection:format_list()
       
       -- Change multiple states to invalid values
-      lines[3] = "#1 │ PENDING │ Add dark mode support"
-      lines[4] = "#2 │ INVALID │ Fix navigation bug"
+      lines[2] = "#1 │ PENDING │ Add dark mode support"
+      lines[3] = "#2 │ INVALID │ Fix navigation bug"
       
       -- Call the actual parse function
       local changes, error = issues._test_parse_issue_list_changes(lines, collection)
@@ -300,8 +299,8 @@ describe("gh.issues", function()
       local lines = collection:format_list()
       
       -- Change to valid states in different cases (keep original titles to avoid title changes)
-      lines[3] = "#1 │ closed │ Add dark mode support"
-      lines[4] = "#2 │ Open │ Fix navigation bug in sidebar"
+      lines[2] = "#1 │ closed │ Add dark mode support"
+      lines[3] = "#2 │ Open │ Fix navigation bug in sidebar"
       
       -- Call the actual parse function
       local changes, error = issues._test_parse_issue_list_changes(lines, collection)
@@ -318,7 +317,7 @@ describe("gh.issues", function()
       local lines = collection:format_list()
       
       -- Only modify issue #1, leave others unchanged
-      lines[3] = "#1 │ CLOSED │ Add dark mode support"
+      lines[2] = "#1 │ CLOSED │ Add dark mode support"
       -- lines[4], lines[5], lines[6] remain unchanged
       
       -- Call the actual parse function
@@ -395,14 +394,14 @@ describe("gh.issues", function()
       
       -- Parse body (skip title and separator)
       local body_lines = {}
-      for i = 3, #lines do
+      for i = 2, #lines do
         table.insert(body_lines, lines[i])
       end
       local new_body = table.concat(body_lines, "\n")
       
       -- Parse original body
       local original_body_lines = {}
-      for i = 3, #original_lines do
+      for i = 2, #original_lines do
         table.insert(original_body_lines, original_lines[i])
       end
       local original_body = table.concat(original_body_lines, "\n")
