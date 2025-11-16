@@ -71,6 +71,17 @@ The issue list buffer displays issues in an editable table format:
 - Change state between OPEN/CLOSED
 - Press `<CR>` on an issue to open detail view
 - Press `R` to refresh the list
+- Press `M` to load more issues
+- Press `S` to open interactive sort menu
+- Quick sort with `s` prefix:
+  - `sn` - Sort by number
+  - `st` - Sort by title
+  - `ss` - Sort by state
+  - `sa` - Sort by author
+  - `sc` - Sort by created date
+  - `su` - Sort by updated date
+  - `sl` - Sort by label count
+- Press same sort key again to toggle ascending/descending order
 - Save with `:w` to sync changes to GitHub
 
 ### Issue Detail View

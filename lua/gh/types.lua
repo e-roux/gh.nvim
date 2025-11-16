@@ -502,6 +502,60 @@ function IssueCollection:sort_by_number(descending)
   end, descending)
 end
 
+--- Sort issues by title
+---@param descending boolean|nil Sort in descending order (default: false)
+---@return gh.IssueCollection
+function IssueCollection:sort_by_title(descending)
+  return self:sort_by(function(issue)
+    return issue.title:lower()
+  end, descending)
+end
+
+--- Sort issues by state (open first by default)
+---@param descending boolean|nil Sort in descending order (default: false)
+---@return gh.IssueCollection
+function IssueCollection:sort_by_state(descending)
+  return self:sort_by(function(issue)
+    return issue.state
+  end, descending)
+end
+
+--- Sort issues by author
+---@param descending boolean|nil Sort in descending order (default: false)
+---@return gh.IssueCollection
+function IssueCollection:sort_by_author(descending)
+  return self:sort_by(function(issue)
+    return issue.author and issue.author.login:lower() or ""
+  end, descending)
+end
+
+--- Sort issues by created date
+---@param descending boolean|nil Sort in descending order (default: false, oldest first)
+---@return gh.IssueCollection
+function IssueCollection:sort_by_created(descending)
+  return self:sort_by(function(issue)
+    return issue.createdAt or ""
+  end, descending)
+end
+
+--- Sort issues by updated date
+---@param descending boolean|nil Sort in descending order (default: false, oldest first)
+---@return gh.IssueCollection
+function IssueCollection:sort_by_updated(descending)
+  return self:sort_by(function(issue)
+    return issue.updatedAt or ""
+  end, descending)
+end
+
+--- Sort issues by label count
+---@param descending boolean|nil Sort in descending order (default: false)
+---@return gh.IssueCollection
+function IssueCollection:sort_by_label_count(descending)
+  return self:sort_by(function(issue)
+    return #issue.labels
+  end, descending)
+end
+
 --- Iterate over issues
 ---@return fun(): integer, gh.Issue Iterator function
 function IssueCollection:iter()

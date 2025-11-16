@@ -180,6 +180,16 @@ Actions:
 - Press <CR> on an issue to open detail view
 - Press R to refresh the list
 - Press M to load more issues
+- Press S to open interactive sort menu
+- Quick sort with `s` prefix:
+  - sn - Sort by number
+  - st - Sort by title
+  - ss - Sort by state
+  - sa - Sort by author
+  - sc - Sort by created date
+  - su - Sort by updated date
+  - sl - Sort by label count
+- Press same sort key again to toggle ascending/descending order
 - Save with :w to sync changes to GitHub
 
 Auto-loading:
@@ -222,6 +232,17 @@ Issue List Buffer:~
     <CR>        Open issue detail view
     R           Refresh issue list
     M           Load more issues (manual)
+    S           Open interactive sort menu
+    
+    Sorting (quick access):~
+    sn          Sort by number (toggle asc/desc)
+    st          Sort by title (toggle asc/desc)
+    ss          Sort by state (toggle asc/desc)
+    sa          Sort by author (toggle asc/desc)
+    sc          Sort by created date (toggle asc/desc)
+    su          Sort by updated date (toggle asc/desc)
+    sl          Sort by label count (toggle asc/desc)
+    
     :w          Save changes to GitHub
 
 Issue Detail Buffer:~
