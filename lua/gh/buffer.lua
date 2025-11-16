@@ -21,6 +21,8 @@ function M.create_scratch(name)
   vim.api.nvim_set_option_value("bufhidden", "hide", { buf = bufnr })
   vim.api.nvim_set_option_value("swapfile", false, { buf = bufnr })
   vim.api.nvim_set_option_value("modifiable", true, { buf = bufnr })
+  vim.api.nvim_set_option_value("number", false, { buf = bufnr })
+  vim.api.nvim_set_option_value("relativenumber", false, { buf = bufnr })
   
   return bufnr
 end
