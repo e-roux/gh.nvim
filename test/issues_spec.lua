@@ -17,28 +17,38 @@ describe("gh.issues", function()
     it("formats issue list correctly", function()
       local lines = collection:format_list()
       
-      assert.equals(5, #lines) -- 1 filter line + 4 issues (horizontal rule is virtual)
-      assert.equals("", lines[1]) -- Filter input line
-      assert.equals("#1 │ OPEN │ Add dark mode support", lines[2])
-      assert.equals("#2 │ OPEN │ Fix navigation bug in sidebar", lines[3])
-      assert.equals("#3 │ CLOSED │ Update documentation", lines[4])
-      assert.equals("#42 │ OPEN │ Refactor authentication module", lines[5])
+      -- 7 filter lines + 4 issues = 11 lines (horizontal rule is virtual)
+      assert.equals(11, #lines)
+      
+      -- Filter lines should be present (lines 1-7)
+      -- They should be either empty or contain filter values
+      for i = 1, 7 do
+        assert.is_not_nil(lines[i])
+      end
+      
+      -- Issue lines start at line 8 (new format without state column)
+      assert.equals("#01 │ Add dark mode support", lines[8])
+      assert.equals("#02 │ Fix navigation bug in sidebar", lines[9])
+      assert.equals("#03 │ Update documentation", lines[10])
+      assert.equals("#42 │ Refactor authentication module", lines[11])
     end)
 
     it("detects no changes when buffer is unchanged", function()
       local original_lines = collection:format_list()
       
-      -- Parse the unchanged buffer back
+      -- Parse the unchanged buffer back (skip 7 filter lines)
       local changes = {}
-      for i = 2, #original_lines do
+      local filter_ui = require("gh.filter")
+      for i = filter_ui.FIRST_ISSUE_LINE, #original_lines do
         local line = original_lines[i]
-        local number, state, title = line:match("^#(%d+)%s+│%s+(%w+)%s+│%s+(.+)%s*$")
+        -- New format: "#0001 │ Issue title" (no state column)
+        local number, title = line:match("^#0*(%d+)%s+│%s+(.+)%s*$")
         if number then
           number = tonumber(number)
           local original = collection:get(number)
           if original then
-            if title ~= original.title or state:lower() ~= original.state then
-              changes[number] = { title = title, state = state:lower() }
+            if title ~= original.title then
+              changes[number] = { title = title }
             end
           end
         end
@@ -50,14 +60,15 @@ describe("gh.issues", function()
     it("detects title change", function()
       local lines = collection:format_list()
       
-      -- Modify issue #1 title (now on line 2)
-      lines[2] = "#1 │ OPEN │ Add dark mode with auto-detection"
+      -- Modify issue #1 title (now on line 8 - after 7 filter lines)
+      lines[8] = "#01 │ Add dark mode with auto-detection"
       
-      -- Parse changes
+      -- Parse changes (skip 7 filter lines)
+      local filter_ui = require("gh.filter")
       local changes = {}
-      for i = 2, #lines do
+      for i = filter_ui.FIRST_ISSUE_LINE, #lines do
         local line = lines[i]
-        local number, state, title = line:match("^#(%d+)%s+│%s+(%w+)%s+│%s+(.+)%s*$")
+        local number, title = line:match("^#0*(%d+)%s+│%s+(.+)%s*$")
         if number then
           number = tonumber(number)
           local original = collection:get(number)
@@ -65,9 +76,6 @@ describe("gh.issues", function()
             local change = {}
             if title ~= original.title then
               change.title = title
-            end
-            if state:lower() ~= original.state then
-              change.state = state:lower()
             end
             if next(change) then
               changes[number] = change
@@ -79,20 +87,24 @@ describe("gh.issues", function()
       assert.equals(1, vim.tbl_count(changes))
       assert.is_not_nil(changes[1])
       assert.equals("Add dark mode with auto-detection", changes[1].title)
-      assert.is_nil(changes[1].state)
     end)
 
-    it("detects state change", function()
+    -- State changes are now managed via filter lines, not issue lines
+    -- These tests are removed as they're no longer applicable
+
+    it("detects title changes for multiple issues", function()
       local lines = collection:format_list()
       
-      -- Change issue #1 from OPEN to CLOSED (now on line 2)
-      lines[2] = "#1 │ CLOSED │ Add dark mode support"
+      -- Change multiple issues (lines 8, 9, 11 after 7 filter lines)
+      lines[8] = "#01 │ Dark mode implementation"
+      lines[11] = "#42 │ Refactored authentication module"
       
       -- Parse changes
+      local filter_ui = require("gh.filter")
       local changes = {}
-      for i = 2, #lines do
+      for i = filter_ui.FIRST_ISSUE_LINE, #lines do
         local line = lines[i]
-        local number, state, title = line:match("^#(%d+)%s+│%s+(%w+)%s+│%s+(.+)%s*$")
+        local number, title = line:match("^#0*(%d+)%s+│%s+(.+)%s*$")
         if number then
           number = tonumber(number)
           local original = collection:get(number)
@@ -101,9 +113,6 @@ describe("gh.issues", function()
             if title ~= original.title then
               change.title = title
             end
-            if state:lower() ~= original.state then
-              change.state = state:lower()
-            end
             if next(change) then
               changes[number] = change
             end
@@ -111,85 +120,11 @@ describe("gh.issues", function()
         end
       end
       
-      assert.equals(1, vim.tbl_count(changes))
-      assert.is_not_nil(changes[1])
-      assert.is_nil(changes[1].title)
-      assert.equals("closed", changes[1].state)
-    end)
-
-    it("detects both title and state changes", function()
-      local lines = collection:format_list()
-      
-      -- Change both title and state for issue #2
-      lines[3] = "#2 │ CLOSED │ Fixed navigation bug in sidebar"
-      
-      -- Parse changes
-      local changes = {}
-      for i = 2, #lines do
-        local line = lines[i]
-        local number, state, title = line:match("^#(%d+)%s+│%s+(%w+)%s+│%s+(.+)%s*$")
-        if number then
-          number = tonumber(number)
-          local original = collection:get(number)
-          if original then
-            local change = {}
-            if title ~= original.title then
-              change.title = title
-            end
-            if state:lower() ~= original.state then
-              change.state = state:lower()
-            end
-            if next(change) then
-              changes[number] = change
-            end
-          end
-        end
-      end
-      
-      assert.equals(1, vim.tbl_count(changes))
-      assert.is_not_nil(changes[2])
-      assert.equals("Fixed navigation bug in sidebar", changes[2].title)
-      assert.equals("closed", changes[2].state)
-    end)
-
-    it("detects multiple issue changes", function()
-      local lines = collection:format_list()
-      
-      -- Change multiple issues
-      lines[2] = "#1 │ OPEN │ Dark mode implementation"
-      lines[3] = "#2 │ CLOSED │ Fix navigation bug in sidebar"
-      lines[5] = "#42 │ CLOSED │ Refactor authentication module"
-      
-      -- Parse changes
-      local changes = {}
-      for i = 2, #lines do
-        local line = lines[i]
-        local number, state, title = line:match("^#(%d+)%s+│%s+(%w+)%s+│%s+(.+)%s*$")
-        if number then
-          number = tonumber(number)
-          local original = collection:get(number)
-          if original then
-            local change = {}
-            if title ~= original.title then
-              change.title = title
-            end
-            if state:lower() ~= original.state then
-              change.state = state:lower()
-            end
-            if next(change) then
-              changes[number] = change
-            end
-          end
-        end
-      end
-      
-      assert.equals(3, vim.tbl_count(changes))
+      assert.equals(2, vim.tbl_count(changes))
       assert.is_not_nil(changes[1])
       assert.equals("Dark mode implementation", changes[1].title)
-      assert.is_not_nil(changes[2])
-      assert.equals("closed", changes[2].state)
       assert.is_not_nil(changes[42])
-      assert.equals("closed", changes[42].state)
+      assert.equals("Refactored authentication module", changes[42].title)
     end)
 
     it("handles empty lines gracefully", function()
@@ -199,11 +134,12 @@ describe("gh.issues", function()
       table.insert(lines, "")
       
       -- Parse changes
+      local filter_ui = require("gh.filter")
       local changes = {}
-      for i = 2, #lines do
+      for i = filter_ui.FIRST_ISSUE_LINE, #lines do
         local line = lines[i]
         if line and line ~= "" then
-          local number, state, title = line:match("^#(%d+)%s+│%s+(%w+)%s+│%s+(.+)%s*$")
+          local number, title = line:match("^#0*(%d+)%s+│%s+(.+)%s*$")
           if number then
             number = tonumber(number)
             local original = collection:get(number)
@@ -211,9 +147,6 @@ describe("gh.issues", function()
               local change = {}
               if title ~= original.title then
                 change.title = title
-              end
-              if state:lower() ~= original.state then
-                change.state = state:lower()
               end
               if next(change) then
                 changes[number] = change
@@ -234,11 +167,12 @@ describe("gh.issues", function()
       table.insert(lines, "This is not a valid issue line")
       
       -- Parse changes
+      local filter_ui = require("gh.filter")
       local changes = {}
-      for i = 2, #lines do
+      for i = filter_ui.FIRST_ISSUE_LINE, #lines do
         local line = lines[i]
         if line and line ~= "" then
-          local number, state, title = line:match("^#(%d+)%s+│%s+(%w+)%s+│%s+(.+)%s*$")
+          local number, title = line:match("^#0*(%d+)%s+│%s+(.+)%s*$")
           if number then
             number = tonumber(number)
             local original = collection:get(number)
@@ -246,9 +180,6 @@ describe("gh.issues", function()
               local change = {}
               if title ~= original.title then
                 change.title = title
-              end
-              if state:lower() ~= original.state then
-                change.state = state:lower()
               end
               if next(change) then
                 changes[number] = change
@@ -262,63 +193,14 @@ describe("gh.issues", function()
       assert.equals(0, vim.tbl_count(changes))
     end)
 
-    it("validates state values and rejects invalid states", function()
-      local lines = collection:format_list()
-      
-      -- Change state to invalid value
-      lines[2] = "#1 │ FOO │ Add dark mode support"
-      
-      -- Call the actual parse function
-      local changes, error = issues._test_parse_issue_list_changes(lines, collection)
-      
-      -- Should return nil and error message
-      assert.is_nil(changes)
-      assert.is_not_nil(error)
-      assert.is_true(error:find("Invalid state 'FOO'") ~= nil)
-      assert.is_true(error:find("must be OPEN or CLOSED") ~= nil)
-    end)
-
-    it("validates multiple invalid states", function()
-      local lines = collection:format_list()
-      
-      -- Change multiple states to invalid values
-      lines[2] = "#1 │ PENDING │ Add dark mode support"
-      lines[3] = "#2 │ INVALID │ Fix navigation bug"
-      
-      -- Call the actual parse function
-      local changes, error = issues._test_parse_issue_list_changes(lines, collection)
-      
-      -- Should return nil and error message with both errors
-      assert.is_nil(changes)
-      assert.is_not_nil(error)
-      assert.is_true(error:find("PENDING") ~= nil)
-      assert.is_true(error:find("INVALID") ~= nil)
-    end)
-
-    it("accepts valid states in different cases", function()
-      local lines = collection:format_list()
-      
-      -- Change to valid states in different cases (keep original titles to avoid title changes)
-      lines[2] = "#1 │ closed │ Add dark mode support"
-      lines[3] = "#2 │ Open │ Fix navigation bug in sidebar"
-      
-      -- Call the actual parse function
-      local changes, error = issues._test_parse_issue_list_changes(lines, collection)
-      
-      -- Should succeed
-      assert.is_not_nil(changes)
-      assert.is_nil(error)
-      assert.equals("closed", changes[1].state)
-      -- #2 was already open, so no change detected
-      assert.is_nil(changes[2])
-    end)
+    -- State validation tests removed - state is now managed via filter lines
+    -- Client-side validation happens in parse_filter_context()
 
     it("only includes modified issues in changes", function()
       local lines = collection:format_list()
       
-      -- Only modify issue #1, leave others unchanged
-      lines[2] = "#1 │ CLOSED │ Add dark mode support"
-      -- lines[4], lines[5], lines[6] remain unchanged
+      -- Only modify issue #1 (line 8), leave others unchanged
+      lines[8] = "#01 │ Add dark mode with system detection"
       
       -- Call the actual parse function
       local changes, error = issues._test_parse_issue_list_changes(lines, collection)
@@ -330,7 +212,7 @@ describe("gh.issues", function()
       -- Only issue #1 should be in changes
       assert.equals(1, vim.tbl_count(changes))
       assert.is_not_nil(changes[1])
-      assert.equals("closed", changes[1].state)
+      assert.equals("Add dark mode with system detection", changes[1].title)
       
       -- Other issues should NOT be in changes
       assert.is_nil(changes[2])

@@ -21,8 +21,17 @@ function M.create_scratch(name)
   vim.api.nvim_set_option_value("bufhidden", "hide", { buf = bufnr })
   vim.api.nvim_set_option_value("swapfile", false, { buf = bufnr })
   vim.api.nvim_set_option_value("modifiable", true, { buf = bufnr })
-  vim.api.nvim_set_option_value("number", false, { buf = bufnr })
-  vim.api.nvim_set_option_value("relativenumber", false, { buf = bufnr })
+  
+  -- Set window-local options when buffer is displayed
+  vim.api.nvim_create_autocmd("BufWinEnter", {
+    buffer = bufnr,
+    callback = function()
+      vim.wo.number = false
+      vim.wo.relativenumber = false
+      -- Keep filter lines visible by setting scrolloff to ensure they stay on screen
+      vim.wo.scrolloff = 8  -- Keep 8 lines visible above cursor (covers 7 filter lines + hrule)
+    end,
+  })
   
   return bufnr
 end

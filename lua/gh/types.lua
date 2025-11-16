@@ -258,10 +258,14 @@ function Issue:comment_count()
 end
 
 --- Format issue as a single line for list view
+---@param width integer|nil Optional fixed width for issue number padding
 ---@return string
-function Issue:format_list_line()
-  local state = self.state:upper()
-  return string.format("#%d │ %s │ %s", self.number, state, self.title)
+function Issue:format_list_line(width)
+  if width then
+    return string.format("#%0" .. width .. "d │ %s", self.number, self.title)
+  else
+    return string.format("#%d │ %s", self.number, self.title)
+  end
 end
 
 --- Format issue for detail view
@@ -568,17 +572,69 @@ function IssueCollection:iter()
   end
 end
 
---- Format collection for list view
----@return string[]
---- Format issues as list
----@return string[]
-function IssueCollection:format_list()
-  local lines = {
-    "",  -- Filter input line (with virtual lines before/after via extmarks)
-  }
+--- Format collection as issue list buffer lines
+---@param filter_context table|nil Optional filter context to pre-populate filter lines
+---@return string[] Buffer lines
+function IssueCollection:format_list(filter_context)
+  filter_context = filter_context or {}
   
+  -- Load filter definitions to get label widths
+  local filter_ui = require("gh.filter")
+  
+  -- Create filter input lines (7 lines for all filter types)
+  -- Pre-fill with spaces to position cursor after virtual label
+  local lines = {}
+  for _, filter in ipairs(filter_ui.FILTERS) do
+    local value = ""
+    
+    -- Get the filter value from context
+    if filter.key == "state" then
+      value = filter_context.state or ""
+    elseif filter.key == "assignee" then
+      value = filter_context.assignee or ""
+    elseif filter.key == "author" then
+      value = filter_context.author or ""
+    elseif filter.key == "label" then
+      -- Convert array to comma-separated string
+      if filter_context.label then
+        if type(filter_context.label) == "table" then
+          value = table.concat(filter_context.label, ", ")
+        else
+          value = filter_context.label
+        end
+      end
+    elseif filter.key == "mention" then
+      value = filter_context.mention or ""
+    elseif filter.key == "milestone" then
+      value = filter_context.milestone or ""
+    elseif filter.key == "search" then
+      value = filter_context.search or ""
+    end
+    
+    -- Calculate label width and pre-fill with spaces if empty
+    -- This positions the cursor after the virtual label
+    -- Use strlen (byte length) instead of strwidth for cursor positioning
+    if value == "" then
+      local label_text = filter.label .. ": "
+      local label_byte_length = vim.fn.strlen(label_text)
+      value = string.rep(" ", label_byte_length)
+    end
+    
+    table.insert(lines, value)
+  end
+  
+  -- Calculate fixed width for issue numbers based on max issue number
+  local max_number = 0
   for _, issue in ipairs(self.issues) do
-    table.insert(lines, issue:format_list_line())
+    if issue.number > max_number then
+      max_number = issue.number
+    end
+  end
+  local width = max_number > 0 and #tostring(max_number) or 1
+  
+  -- Add issue lines after filters with fixed-width numbers
+  for _, issue in ipairs(self.issues) do
+    table.insert(lines, issue:format_list_line(width))
   end
   
   return lines

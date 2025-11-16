@@ -6,6 +6,9 @@ local cli = require("gh.cli")
 local cache = require("gh.cache")
 local types = require("gh.types")
 
+--- Namespace for selected issue highlighting
+local selected_ns = vim.api.nvim_create_namespace("gh_selected_issue")
+
 --- Valid issue states
 local VALID_STATES = {
   OPEN = true,
@@ -39,6 +42,26 @@ local function setup_issue_list_highlights(bufnr)
   vim.fn.matchadd("GhIssueSeparator", [[│]], 10, -1, { window = 0 })
 end
 
+--- Highlight the selected issue line in bold
+---@param bufnr integer Buffer number
+---@param line_num integer Line number (1-indexed) to highlight
+local function highlight_selected_issue(bufnr, line_num)
+  -- Define bold highlight group if it doesn't exist
+  vim.api.nvim_set_hl(0, "GhIssueSelected", { bold = true, default = true })
+  
+  -- Clear previous selection highlighting
+  vim.api.nvim_buf_clear_namespace(bufnr, selected_ns, 0, -1)
+  
+  -- Add bold highlight to the entire line
+  if line_num > 0 then
+    vim.api.nvim_buf_set_extmark(bufnr, selected_ns, line_num - 1, 0, {
+      end_row = line_num,
+      hl_group = "GhIssueSelected",
+      hl_eol = true,
+    })
+  end
+end
+
 --- Parse issue list buffer to extract changes
 ---@param lines string[] Buffer lines
 ---@param collection gh.IssueCollection Original issue collection
@@ -48,13 +71,13 @@ local function parse_issue_list_changes(lines, collection)
   local changes = {}
   local errors = {}
   
-  -- Skip filter line (line 1), start from line 2 where issues begin
-  -- Note: horizontal rule is now a virtual line, not in buffer
-  for i = 2, #lines do
+  -- Skip filter lines (lines 1-7), start from line 8 where issues begin
+  local filter_ui = require("gh.filter")
+  for i = filter_ui.FIRST_ISSUE_LINE, #lines do
     local line = lines[i]
     if line and line ~= "" then
-      -- Parse format: "#123 │ OPEN │ Issue title here"
-      local number, state, title = line:match("^#(%d+)%s+│%s+(%w+)%s+│%s+(.+)%s*$")
+      -- Parse format: "#123 │ Issue title here" (state removed, now in filter)
+      local number, title = line:match("^#0*(%d+)%s+│%s+(.+)%s*$")
       
       if number then
         number = tonumber(number)
@@ -68,18 +91,8 @@ local function parse_issue_list_changes(lines, collection)
             change.title = title
           end
           
-          -- Check if state changed (normalize to uppercase)
-          state = state:upper()
-          
-          -- Validate state
-          if not VALID_STATES[state] then
-            table.insert(errors, string.format("Line %d: Invalid state '%s' for issue #%d (must be OPEN or CLOSED)", i, state, number))
-          end
-          
-          local original_state = original.state:upper()
-          if state ~= original_state then
-            change.state = state:lower()
-          end
+          -- Note: State is now managed via filter lines, not in issue lines
+          -- No state validation needed here
           
           if next(change) then
             changes[number] = change
@@ -99,9 +112,10 @@ end
 
 --- Format issues as table for buffer display
 ---@param collection gh.IssueCollection Collection of issues
+---@param filter_context table|nil Optional filter context to pre-populate filter lines
 ---@return string[] Formatted lines
-local function format_issue_list(collection)
-  return collection:format_list()
+local function format_issue_list(collection, filter_context)
+  return collection:format_list(filter_context)
 end
 
 --- Open issue list buffer
@@ -135,12 +149,19 @@ function M.open_issue_list(repo, opts)
       return
     end
     
+    -- Get existing filter context to maintain consistency
+    local ok_filter, existing_filter = pcall(vim.api.nvim_buf_get_var, bufnr, "gh_filter_context")
+    local filter_context = ok_filter and existing_filter or { state = state }
+    
     local currently_loaded = #existing_data
     local new_limit = currently_loaded + limit  -- Fetch more than we have
     
     vim.notify(string.format("Loading issues %d-%d...", currently_loaded + 1, new_limit), vim.log.levels.INFO)
     
-    cli.list_issues(repo, { limit = new_limit, state = state }, function(success, all_issues, error)
+    -- Build CLI options from filter context
+    local cli_opts = vim.tbl_extend("force", filter_context, { limit = new_limit })
+    
+    cli.list_issues(repo, cli_opts, function(success, all_issues, error)
       if not success then
         vim.notify("Failed to fetch more issues: " .. (error or "unknown error"), vim.log.levels.ERROR)
         return
@@ -161,7 +182,8 @@ function M.open_issue_list(repo, opts)
       
       -- Update buffer with all issues
       local collection = types.IssueCollection.new(all_issues)
-      local lines = format_issue_list(collection)
+      -- Use filter_context from outer scope (retrieved from buffer or defaulted)
+      local lines = format_issue_list(collection, filter_context)
       buffer.set_lines(bufnr, lines)
       
       -- Update stored collection
@@ -204,7 +226,17 @@ function M.open_issue_list(repo, opts)
       local bufnr = buffer.create_scratch(buf_name)
       
       -- Format and display issues
-      local lines = format_issue_list(collection)
+      -- Build filter context from opts to pre-populate filter lines
+      local filter_context = {
+        state = state,
+        assignee = opts.assignee,
+        author = opts.author,
+        label = opts.label,
+        mention = opts.mention,
+        milestone = opts.milestone,
+        search = opts.search,
+      }
+      local lines = format_issue_list(collection, filter_context)
       buffer.set_lines(bufnr, lines)
       
       -- Store original collection in buffer variable for comparison on write
@@ -212,6 +244,10 @@ function M.open_issue_list(repo, opts)
       vim.api.nvim_buf_set_var(bufnr, "gh_repo", repo or "")
       vim.api.nvim_buf_set_var(bufnr, "gh_issues_loaded", #issues)
       vim.api.nvim_buf_set_var(bufnr, "gh_issues_state", state)
+      vim.api.nvim_buf_set_var(bufnr, "gh_filter_context", filter_context)
+      
+      -- Mark buffer as initializing to prevent autocmds from triggering filter updates
+      vim.api.nvim_buf_set_var(bufnr, "gh_initializing", true)
       
       -- Set up write handler
       buffer.on_write(bufnr, function(buf)
@@ -293,8 +329,11 @@ function M.open_issue_list(repo, opts)
         ["<CR>"] = {
           callback = function()
             local line = vim.api.nvim_get_current_line()
+            local line_num = vim.api.nvim_win_get_cursor(0)[1]
             local number = line:match("^#(%d+)")
             if number then
+              -- Highlight the selected issue line in bold
+              highlight_selected_issue(bufnr, line_num)
               M.open_issue_detail(tonumber(number), repo)
             end
           end,
@@ -378,6 +417,11 @@ function M.open_issue_list(repo, opts)
       
       -- Set filetype for syntax highlighting
       vim.api.nvim_set_option_value("filetype", "gh-issues", { buf = bufnr })
+      
+      -- Mark initialization as complete after everything is set up
+      vim.schedule(function()
+        vim.api.nvim_buf_set_var(bufnr, "gh_initializing", false)
+      end)
     end
   )
 end

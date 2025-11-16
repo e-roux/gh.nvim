@@ -26,7 +26,7 @@ end
 
 --- List issues for a repository
 ---@param repo string|nil Repository (owner/repo) or nil for current repo
----@param opts table|nil Options: { limit: number, state: string }
+---@param opts table|nil Options: { limit: number, state: string, assignee: string, author: string, label: string[], mention: string, milestone: string, search: string }
 ---@param callback fun(success: boolean, issues: table[]|nil, error: string|nil)
 function M.list_issues(repo, opts, callback)
   -- Handle old signature: list_issues(repo, callback)
@@ -45,6 +45,42 @@ function M.list_issues(repo, opts, callback)
     "--limit", tostring(limit),
     "--state", state
   }
+  
+  -- Add optional filters
+  if opts.assignee then
+    table.insert(args, "--assignee")
+    table.insert(args, opts.assignee)
+  end
+  
+  if opts.author then
+    table.insert(args, "--author")
+    table.insert(args, opts.author)
+  end
+  
+  if opts.label then
+    -- Labels can be a string or array of strings
+    local labels = type(opts.label) == "table" and opts.label or {opts.label}
+    for _, label in ipairs(labels) do
+      table.insert(args, "--label")
+      table.insert(args, label)
+    end
+  end
+  
+  if opts.mention then
+    table.insert(args, "--mention")
+    table.insert(args, opts.mention)
+  end
+  
+  if opts.milestone then
+    table.insert(args, "--milestone")
+    table.insert(args, opts.milestone)
+  end
+  
+  if opts.search then
+    table.insert(args, "--search")
+    table.insert(args, opts.search)
+  end
+  
   if repo then
     table.insert(args, "--repo")
     table.insert(args, repo)

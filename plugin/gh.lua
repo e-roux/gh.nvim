@@ -24,22 +24,45 @@ local function gh_command(opts)
   -- Check if this is an issue subcommand
   if args[1] == "issue" then
     if args[2] == "list" or args[2] == "ls" then
-      -- Parse flags: :Gh issue list [--state open|closed|all] [--limit N] [--repo owner/repo]
-      local state = "open"  -- Default to open, mirroring gh CLI
-      local limit = nil
+      -- Parse flags: :Gh issue list [--state open|closed|all] [--limit N] [--repo owner/repo] [--assignee user] [--author user] [--label label] [--mention user] [--milestone name] [--search query]
+      local filter_opts = {
+        state = "open",  -- Default to open, mirroring gh CLI
+      }
       local repo = nil
       
       local i = 3
       while i <= #args do
         local arg = args[i]
         if arg == "--state" or arg == "-s" then
-          state = args[i + 1]
+          filter_opts.state = args[i + 1]
           i = i + 2
         elseif arg == "--limit" or arg == "-L" then
-          limit = tonumber(args[i + 1])
+          filter_opts.limit = tonumber(args[i + 1])
           i = i + 2
         elseif arg == "--repo" or arg == "-R" then
           repo = args[i + 1]
+          i = i + 2
+        elseif arg == "--assignee" or arg == "-a" then
+          filter_opts.assignee = args[i + 1]
+          i = i + 2
+        elseif arg == "--author" or arg == "-A" then
+          filter_opts.author = args[i + 1]
+          i = i + 2
+        elseif arg == "--label" or arg == "-l" then
+          -- Labels can be specified multiple times
+          if not filter_opts.label then
+            filter_opts.label = {}
+          end
+          table.insert(filter_opts.label, args[i + 1])
+          i = i + 2
+        elseif arg == "--mention" then
+          filter_opts.mention = args[i + 1]
+          i = i + 2
+        elseif arg == "--milestone" or arg == "-m" then
+          filter_opts.milestone = args[i + 1]
+          i = i + 2
+        elseif arg == "--search" or arg == "-S" then
+          filter_opts.search = args[i + 1]
           i = i + 2
         else
           -- Positional argument (repo without flag)
@@ -48,7 +71,7 @@ local function gh_command(opts)
         end
       end
       
-      gh.issues.open_issue_list(repo, { state = state, limit = limit })
+      gh.issues.open_issue_list(repo, filter_opts)
       return
     elseif args[2] == "view" then
       -- :Gh issue view <number> [--repo owner/repo]
