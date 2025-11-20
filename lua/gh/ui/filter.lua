@@ -232,8 +232,8 @@ function M.apply_filters(bufnr)
       return
     end
 
-    local types = require("gh.types")
-    local collection = types.IssueCollection.new(issues)
+    local IssueCollection = require("gh.models.collection").IssueCollection
+    local collection = IssueCollection.new(issues)
 
     -- Generate issue lines
     local issue_lines = {}
@@ -371,8 +371,8 @@ function M.update_filter_display(bufnr)
   -- Add state indicators to issue lines
   local ok, collection_data = pcall(vim.api.nvim_buf_get_var, bufnr, "gh_issues_collection")
   if ok and collection_data then
-    local types = require("gh.types")
-    local collection = types.IssueCollection.new(collection_data)
+    local IssueCollection = require("gh.models.collection").IssueCollection
+    local collection = IssueCollection.new(collection_data)
 
     local total_lines = vim.api.nvim_buf_line_count(bufnr)
     local issue_line_num = M.FIRST_ISSUE_LINE - 1 -- Start at 0-indexed line 7
@@ -396,7 +396,7 @@ end
 --- Set up keymaps to jump to filter fields
 ---@param bufnr integer Buffer number
 function M.setup_filter_keymaps(bufnr)
-  local buffer_module = require("gh.buffer")
+  local buffer_module = require("gh.ui.buffer")
   local keymaps = {}
 
   for _, filter in ipairs(M.FILTERS) do

@@ -1,6 +1,6 @@
 --- Tests for gh.issues module
 local fixtures = require("test.fixtures.gh_responses")
-local types = require("gh.types")
+local IssueCollection = require("gh.models.collection").IssueCollection
 
 -- Set test environment variable before requiring the module
 vim.env.PLENARY_TEST = "1"
@@ -11,26 +11,29 @@ describe("gh.issues", function()
     local collection
 
     before_each(function()
-      collection = types.IssueCollection.new(fixtures.issue_list)
+      collection = IssueCollection.new(fixtures.issue_list)
     end)
 
     it("formats issue list correctly", function()
       local lines = collection:format_list()
       
-      -- 7 filter lines + 4 issues = 11 lines (horizontal rule is virtual)
-      assert.equals(11, #lines)
+      -- 1 header line + 7 filter lines + 4 issues = 12 lines
+      assert.equals(12, #lines)
       
-      -- Filter lines should be present (lines 1-7)
+      -- Header line should be empty (line 1)
+      assert.equals("", lines[1])
+      
+      -- Filter lines should be present (lines 2-8)
       -- They should be either empty or contain filter values
-      for i = 1, 7 do
+      for i = 2, 8 do
         assert.is_not_nil(lines[i])
       end
       
-      -- Issue lines start at line 8 (new format without state column)
-      assert.equals("#01 │ Add dark mode support", lines[8])
-      assert.equals("#02 │ Fix navigation bug in sidebar", lines[9])
-      assert.equals("#03 │ Update documentation", lines[10])
-      assert.equals("#42 │ Refactor authentication module", lines[11])
+      -- Issue lines start at line 9 (new format without state column)
+      assert.equals("#01 │ Add dark mode support", lines[9])
+      assert.equals("#02 │ Fix navigation bug in sidebar", lines[10])
+      assert.equals("#03 │ Update documentation", lines[11])
+      assert.equals("#42 │ Refactor authentication module", lines[12])
     end)
 
     it("detects no changes when buffer is unchanged", function()
@@ -38,7 +41,7 @@ describe("gh.issues", function()
       
       -- Parse the unchanged buffer back (skip 7 filter lines)
       local changes = {}
-      local filter_ui = require("gh.filter")
+      local filter_ui = require("gh.ui.filter")
       for i = filter_ui.FIRST_ISSUE_LINE, #original_lines do
         local line = original_lines[i]
         -- New format: "#0001 │ Issue title" (no state column)
@@ -59,12 +62,12 @@ describe("gh.issues", function()
 
     it("detects title change", function()
       local lines = collection:format_list()
+      local filter_ui = require("gh.ui.filter")
       
-      -- Modify issue #1 title (now on line 8 - after 7 filter lines)
-      lines[8] = "#01 │ Add dark mode with auto-detection"
+      -- Modify issue #1 title (first issue line)
+      lines[filter_ui.FIRST_ISSUE_LINE] = "#01 │ Add dark mode with auto-detection"
       
-      -- Parse changes (skip 7 filter lines)
-      local filter_ui = require("gh.filter")
+      -- Parse changes
       local changes = {}
       for i = filter_ui.FIRST_ISSUE_LINE, #lines do
         local line = lines[i]
@@ -94,13 +97,13 @@ describe("gh.issues", function()
 
     it("detects title changes for multiple issues", function()
       local lines = collection:format_list()
+      local filter_ui = require("gh.ui.filter")
       
-      -- Change multiple issues (lines 8, 9, 11 after 7 filter lines)
-      lines[8] = "#01 │ Dark mode implementation"
-      lines[11] = "#42 │ Refactored authentication module"
+      -- Change multiple issues (first issue and fourth issue)
+      lines[filter_ui.FIRST_ISSUE_LINE] = "#01 │ Dark mode implementation"
+      lines[filter_ui.FIRST_ISSUE_LINE + 3] = "#42 │ Refactored authentication module"
       
       -- Parse changes
-      local filter_ui = require("gh.filter")
       local changes = {}
       for i = filter_ui.FIRST_ISSUE_LINE, #lines do
         local line = lines[i]
@@ -134,7 +137,7 @@ describe("gh.issues", function()
       table.insert(lines, "")
       
       -- Parse changes
-      local filter_ui = require("gh.filter")
+      local filter_ui = require("gh.ui.filter")
       local changes = {}
       for i = filter_ui.FIRST_ISSUE_LINE, #lines do
         local line = lines[i]
@@ -167,7 +170,7 @@ describe("gh.issues", function()
       table.insert(lines, "This is not a valid issue line")
       
       -- Parse changes
-      local filter_ui = require("gh.filter")
+      local filter_ui = require("gh.ui.filter")
       local changes = {}
       for i = filter_ui.FIRST_ISSUE_LINE, #lines do
         local line = lines[i]
@@ -198,9 +201,10 @@ describe("gh.issues", function()
 
     it("only includes modified issues in changes", function()
       local lines = collection:format_list()
+      local filter_ui = require("gh.ui.filter")
       
-      -- Only modify issue #1 (line 8), leave others unchanged
-      lines[8] = "#01 │ Add dark mode with system detection"
+      -- Only modify issue #1 (first issue line), leave others unchanged
+      lines[filter_ui.FIRST_ISSUE_LINE] = "#01 │ Add dark mode with system detection"
       
       -- Call the actual parse function
       local changes, error = issues._test_parse_issue_list_changes(lines, collection)
@@ -242,7 +246,8 @@ describe("gh.issues", function()
     local issue
 
     before_each(function()
-      issue = types.Issue.new(fixtures.issue_detail_1)
+      local Issue = require("gh.models.issue").Issue
+      issue = Issue.new(fixtures.issue_detail_1)
     end)
 
     it("formats issue detail correctly", function()

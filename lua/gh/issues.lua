@@ -1,10 +1,10 @@
 --- Issue buffer management for Oil.nvim-style editing
 local M = {}
 
-local buffer = require("gh.buffer")
+local buffer = require("gh.ui.buffer")
 local cli = require("gh.cli")
 local cache = require("gh.cache")
-local types = require("gh.types")
+local IssueCollection = require("gh.models.collection").IssueCollection
 
 --- Namespace for selected issue highlighting
 local selected_ns = vim.api.nvim_create_namespace("gh_selected_issue")
@@ -72,7 +72,7 @@ local function parse_issue_list_changes(lines, collection)
   local errors = {}
   
   -- Skip filter lines (lines 1-7), start from line 8 where issues begin
-  local filter_ui = require("gh.filter")
+  local filter_ui = require("gh.ui.filter")
   for i = filter_ui.FIRST_ISSUE_LINE, #lines do
     local line = lines[i]
     if line and line ~= "" then
@@ -181,7 +181,7 @@ function M.open_issue_list(repo, opts)
       end
       
       -- Update buffer with all issues
-      local collection = types.IssueCollection.new(all_issues)
+      local collection = IssueCollection.new(all_issues)
       -- Use filter_context from outer scope (retrieved from buffer or defaulted)
       local lines = format_issue_list(collection, filter_context)
       buffer.set_lines(bufnr, lines)
@@ -219,7 +219,7 @@ function M.open_issue_list(repo, opts)
       end
       
       -- Create collection from raw data
-      local collection = types.IssueCollection.new(issues)
+      local collection = IssueCollection.new(issues)
       
       -- Create buffer
       local buf_name = repo and ("gh://issues/" .. repo) or "gh://issues"
@@ -253,7 +253,7 @@ function M.open_issue_list(repo, opts)
       buffer.on_write(bufnr, function(buf)
         local current_lines = buffer.get_lines(buf)
         local original_data = vim.api.nvim_buf_get_var(buf, "gh_issues_collection")
-        local original_collection = types.IssueCollection.new(original_data)
+        local original_collection = IssueCollection.new(original_data)
         local target_repo = vim.api.nvim_buf_get_var(buf, "gh_repo")
         if target_repo == "" then
           target_repo = nil
@@ -362,7 +362,7 @@ function M.open_issue_list(repo, opts)
       })
       
       -- Set up inline filter UI with auto-update
-      local filter_ui = require("gh.filter")
+      local filter_ui = require("gh.ui.filter")
       filter_ui.setup_auto_filter(bufnr)
       filter_ui.setup_filter_keymaps(bufnr)
       
@@ -481,7 +481,7 @@ local function add_issue_metadata_virtual_text(bufnr)
   end
   
   -- Use the new render module for Snacks-style rendering
-  local render = require("gh.render")
+  local render = require("gh.ui.render")
   render.render_metadata(bufnr, issue)
 end
 
