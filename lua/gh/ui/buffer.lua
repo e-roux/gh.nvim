@@ -84,6 +84,20 @@ function M.find_issue_detail_window()
   return nil
 end
 
+--- Find window displaying an issue list buffer (gh://issues)
+---@return integer|nil Window ID if found, nil otherwise
+function M.find_issue_list_window()
+  for _, win in ipairs(vim.api.nvim_list_wins()) do
+    local buf = vim.api.nvim_win_get_buf(win)
+    local bufname = vim.api.nvim_buf_get_name(buf)
+    -- Check if buffer name matches issue list pattern
+    if bufname:match("^gh://issues") then
+      return win
+    end
+  end
+  return nil
+end
+
 --- Open buffer, optionally reusing an existing issue detail window
 ---@param bufnr integer Buffer number
 ---@param opts table|nil Options: { reuse_window: boolean, split_direction: "auto"|"horizontal"|"vertical" }
@@ -102,6 +116,16 @@ function M.open_smart(bufnr, opts)
     end
   end
   
+  -- Check if issue list window is visible
+  local issue_list_win = M.find_issue_list_window()
+  
+  if not issue_list_win then
+    -- No issue list visible, open in current window
+    vim.api.nvim_set_current_buf(bufnr)
+    return
+  end
+  
+  -- Issue list is visible, open in split
   -- Determine vertical split based on split_direction
   local vertical = false
   if split_direction == "auto" then
@@ -113,7 +137,6 @@ function M.open_smart(bufnr, opts)
     vertical = true
   end
   
-  -- No existing window to reuse, open in split
   M.open_split(bufnr, vertical)
 end
 

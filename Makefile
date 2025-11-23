@@ -1,5 +1,5 @@
 SHELL := /bin/sh
-.DEFAULT_GOAL := all
+.DEFAULT_GOAL := help
 .SILENT:
 
 #------------------------------------------------------------------------------
@@ -20,7 +20,7 @@ LUA_DIR ?= lua
 # Phony Targets Declaration
 #------------------------------------------------------------------------------
 
-.PHONY: all test fmt lint clean help
+.PHONY: all test test.unit e2e fmt lint clean help
 .PHONY: plenary.init plenary.run plenary.clean
 .PHONY: stylua.run luacheck.run
 
@@ -30,7 +30,37 @@ LUA_DIR ?= lua
 
 all: test
 
-test: plenary.run
+test: test.unit e2e
+
+test.unit: plenary.init
+	printf "🧪 Running unit tests...\n"
+	test_files=$$(find $(TEST_DIR)/unit -name '*_spec.lua' -type f 2>/dev/null); \
+	if [ -n "$$test_files" ]; then \
+		for file in $$test_files; do \
+			printf "  Testing: $$file\n"; \
+			$(NVIM) --headless --noplugin \
+				-u test/minimal_init.lua \
+				-c "PlenaryBustedFile $$file"; \
+		done; \
+		printf "✅ Unit tests complete\n"; \
+	else \
+		printf "⚠️  No unit test files found in $(TEST_DIR)/unit\n"; \
+	fi
+
+e2e: plenary.init
+	printf "🚀 Running E2E tests (user journeys)...\n"
+	test_files=$$(find $(TEST_DIR)/e2e -maxdepth 1 -name '*_journey_spec.lua' -type f 2>/dev/null); \
+	if [ -n "$$test_files" ]; then \
+		for file in $$test_files; do \
+			printf "  Journey: $$file\n"; \
+			$(NVIM) --headless --noplugin \
+				-u test/minimal_init.lua \
+				-c "PlenaryBustedFile $$file"; \
+		done; \
+		printf "✅ E2E tests complete\n"; \
+	else \
+		printf "⚠️  No E2E test files found in $(TEST_DIR)/e2e\n"; \
+	fi
 
 fmt: stylua.run
 
@@ -118,7 +148,9 @@ help:
 	printf "Usage: make [target] [VAR=val]\n\n"
 	printf "Targets:\n"
 	printf "  all          - Run all tests (default)\n"
-	printf "  test         - Run plenary tests\n"
+	printf "  test         - Run all tests (unit + e2e)\n"
+	printf "  test.unit    - Run unit tests only\n"
+	printf "  e2e          - Run E2E tests only\n"
 	printf "  fmt          - Format Lua files with stylua\n"
 	printf "  lint         - Lint Lua files with luacheck\n"
 	printf "  clean        - Remove generated files and caches\n"

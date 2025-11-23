@@ -17,6 +17,9 @@ vim.g.gh_opts = vim.g.gh_opts
 ---
 ---Options for issue detail view behavior
 ---@field issue_detail? gh.IssueDetailOpts
+---
+---Options for issue creation
+---@field issue_create? gh.IssueCreateOpts
 
 ---@class gh.IssueDetailOpts
 ---
@@ -31,6 +34,20 @@ vim.g.gh_opts = vim.g.gh_opts
 ---  - "vertical": Always split vertically
 ---@field split_direction? "auto"|"horizontal"|"vertical"
 
+---@class gh.IssueCreateOpts
+---
+---Default assignees for new issues
+---@field default_assignees? string[]
+---
+---Default labels for new issues
+---@field default_labels? string[]
+---
+---Default milestone for new issues
+---@field default_milestone? string
+---
+---Default project for new issues
+---@field default_project? string
+
 ---Default configuration
 ---@type gh.Opts
 local defaults = {
@@ -38,6 +55,12 @@ local defaults = {
   issue_detail = {
     reuse_window = true,
     split_direction = "auto",  -- Auto-detect based on window width
+  },
+  issue_create = {
+    default_assignees = nil,
+    default_labels = nil,
+    default_milestone = nil,
+    default_project = nil,
   },
 }
 

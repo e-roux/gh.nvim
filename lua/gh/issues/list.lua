@@ -359,6 +359,13 @@ function M.open_issue_list(repo, opts)
           end,
           desc = "Load more issues (window height)",
         },
+        ["<leader>n"] = {
+          callback = function()
+            local create = require("gh.issues.create")
+            create.create_issue_buffer({ repo = repo })
+          end,
+          desc = "Create new issue",
+        },
       })
       
       -- Set up inline filter UI with auto-update
@@ -614,23 +621,36 @@ function M.setup_autocmds()
   })
   
   -- Handle :e or buffer reload for gh://issues buffers
-  vim.api.nvim_create_autocmd({ "BufReadCmd", "BufNewFile" }, {
+  vim.api.nvim_create_autocmd({ "BufReadCmd" }, {
     group = group,
     pattern = "gh://issues",
-    callback = function()
+    callback = function(args)
+      -- Get the current buffer number
+      local bufnr = args.buf
+      
+      -- Mark buffer as loaded to prevent error message
+      vim.bo[bufnr].buftype = "acwrite"
+      vim.b[bufnr].is_gh_buffer = true
+      
+      -- Open the issue list
       M.open_issue_list(nil)
-      return true
     end,
   })
   
   -- Handle :e or buffer reload for gh://issues/* buffers (with repo)
-  vim.api.nvim_create_autocmd({ "BufReadCmd", "BufNewFile" }, {
+  vim.api.nvim_create_autocmd({ "BufReadCmd" }, {
     group = group,
     pattern = "gh://issues/*",
     callback = function(args)
+      -- Get the current buffer number
+      local bufnr = args.buf
+      
+      -- Mark buffer as loaded to prevent error message
+      vim.bo[bufnr].buftype = "acwrite"
+      vim.b[bufnr].is_gh_buffer = true
+      
       local repo = args.file:match("^gh://issues/(.+)$")
       M.open_issue_list(repo)
-      return true
     end,
   })
   
@@ -757,6 +777,27 @@ function M.setup_autocmds()
       end
       
       return true
+    end,
+  })
+  
+  -- Handle :e or buffer reload for gh://issue/new/* buffers (new issue creation)
+  vim.api.nvim_create_autocmd({ "BufReadCmd" }, {
+    group = group,
+    pattern = { "gh://issue/new", "gh://issue/new/*" },
+    callback = function(args)
+      -- Get the current buffer number
+      local bufnr = args.buf
+      
+      -- Mark buffer as loaded to prevent error message
+      vim.bo[bufnr].buftype = "acwrite"
+      vim.b[bufnr].is_gh_buffer = true
+      
+      -- Parse repo from buffer name if present
+      local repo = args.file:match("^gh://issue/new/(.+)$")
+      
+      -- Open new issue buffer
+      local create = require("gh.issues.create")
+      create.create_issue_buffer({ repo = repo })
     end,
   })
 end
