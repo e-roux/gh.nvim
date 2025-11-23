@@ -20,6 +20,9 @@ vim.g.gh_opts = vim.g.gh_opts
 ---
 ---Options for issue creation
 ---@field issue_create? gh.IssueCreateOpts
+---
+---Options for issue list view behavior
+---@field issue_list? gh.IssueListOpts
 
 ---@class gh.IssueDetailOpts
 ---
@@ -48,20 +51,34 @@ vim.g.gh_opts = vim.g.gh_opts
 ---Default project for new issues
 ---@field default_project? string
 
+---@class gh.IssueListOpts
+---
+---Enable issue deletion with `dd` keymap in issue list
+---@field enable_delete? boolean
+---
+---Require confirmation before deleting issues
+---When `true`, prompts for confirmation before deletion
+---When `false`, deletes immediately without confirmation
+---@field delete_confirmation? boolean
+
 ---Default configuration
 ---@type gh.Opts
 local defaults = {
-  data_source = "json",  -- Use JSON output via gh CLI (reliable)
-  issue_detail = {
-    reuse_window = true,
-    split_direction = "auto",  -- Auto-detect based on window width
-  },
-  issue_create = {
-    default_assignees = nil,
-    default_labels = nil,
-    default_milestone = nil,
-    default_project = nil,
-  },
+	data_source = "json", -- Use JSON output via gh CLI (reliable)
+	issue_detail = {
+		reuse_window = true,
+		split_direction = "auto", -- Auto-detect based on window width
+	},
+	issue_create = {
+		default_assignees = nil,
+		default_labels = nil,
+		default_milestone = nil,
+		default_project = nil,
+	},
+	issue_list = {
+		enable_delete = true,
+		delete_confirmation = true,
+	},
 }
 
 ---Plugin options, lazily merged from `defaults` and `vim.g.gh_opts`.
