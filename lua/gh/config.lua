@@ -64,21 +64,21 @@ vim.g.gh_opts = vim.g.gh_opts
 ---Default configuration
 ---@type gh.Opts
 local defaults = {
-	data_source = "json", -- Use JSON output via gh CLI (reliable)
-	issue_detail = {
-		reuse_window = true,
-		split_direction = "auto", -- Auto-detect based on window width
-	},
-	issue_create = {
-		default_assignees = nil,
-		default_labels = nil,
-		default_milestone = nil,
-		default_project = nil,
-	},
-	issue_list = {
-		enable_delete = true,
-		delete_confirmation = true,
-	},
+  data_source = "json", -- Use JSON output via gh CLI (reliable)
+  issue_detail = {
+    reuse_window = true,
+    split_direction = "auto", -- Auto-detect based on window width
+  },
+  issue_create = {
+    default_assignees = nil,
+    default_labels = nil,
+    default_milestone = nil,
+    default_project = nil,
+  },
+  issue_list = {
+    enable_delete = true,
+    delete_confirmation = true,
+  },
 }
 
 ---Plugin options, lazily merged from `defaults` and `vim.g.gh_opts`.

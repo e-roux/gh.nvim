@@ -3,22 +3,22 @@
 -- Check for plenary dependency
 local ok = pcall(require, "plenary.job")
 if not ok then
-	vim.notify("gh.nvim: Plenary not found", vim.log.levels.WARN)
-	return
+  vim.notify("gh.nvim: Plenary not found", vim.log.levels.WARN)
+  return
 end
 
 -- Load gh module
 local gh_module_ok, gh = pcall(require, "gh")
 if not gh_module_ok then
-	vim.notify("gh.nvim: Failed to load gh module: " .. tostring(gh), vim.log.levels.ERROR)
-	return
+  vim.notify("gh.nvim: Failed to load gh module: " .. tostring(gh), vim.log.levels.ERROR)
+  return
 end
 
 --- Main gh command handler - mirrors gh CLI structure
 --- @param opts table
 local function gh_command(opts)
-	local commands = require("gh.commands")
-	commands.handle(opts.fargs)
+  local commands = require("gh.commands")
+  commands.handle(opts.fargs)
 end
 
 --- Simple command completion for Gh command
@@ -27,13 +27,13 @@ end
 --- @param cursor_pos integer Cursor position
 --- @return string[] Completion candidates
 local function gh_complete(arg_lead, cmd_line, cursor_pos)
-	local commands = require("gh.commands")
-	return commands.complete(arg_lead, cmd_line, cursor_pos)
+  local commands = require("gh.commands")
+  return commands.complete(arg_lead, cmd_line, cursor_pos)
 end
 
 vim.api.nvim_create_user_command("Gh", gh_command, {
-	nargs = "*",
-	bang = true,
-	complete = gh_complete,
-	desc = "GitHub CLI integration - mirrors gh command structure",
+  nargs = "*",
+  bang = true,
+  complete = gh_complete,
+  desc = "GitHub CLI integration - mirrors gh command structure",
 })

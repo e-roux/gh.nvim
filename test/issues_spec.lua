@@ -16,19 +16,19 @@ describe("gh.issues", function()
 
     it("formats issue list correctly", function()
       local lines = collection:format_list()
-      
+
       -- 1 header line + 7 filter lines + 4 issues = 12 lines
       assert.equals(12, #lines)
-      
+
       -- Header line should be empty (line 1)
       assert.equals("", lines[1])
-      
+
       -- Filter lines should be present (lines 2-8)
       -- They should be either empty or contain filter values
       for i = 2, 8 do
         assert.is_not_nil(lines[i])
       end
-      
+
       -- Issue lines start at line 9 (new format without state column)
       assert.equals("#01 │ Add dark mode support", lines[9])
       assert.equals("#02 │ Fix navigation bug in sidebar", lines[10])
@@ -38,7 +38,7 @@ describe("gh.issues", function()
 
     it("detects no changes when buffer is unchanged", function()
       local original_lines = collection:format_list()
-      
+
       -- Parse the unchanged buffer back (skip 7 filter lines)
       local changes = {}
       local filter_ui = require("gh.ui.filter")
@@ -56,17 +56,17 @@ describe("gh.issues", function()
           end
         end
       end
-      
+
       assert.equals(0, vim.tbl_count(changes))
     end)
 
     it("detects title change", function()
       local lines = collection:format_list()
       local filter_ui = require("gh.ui.filter")
-      
+
       -- Modify issue #1 title (first issue line)
       lines[filter_ui.FIRST_ISSUE_LINE] = "#01 │ Add dark mode with auto-detection"
-      
+
       -- Parse changes
       local changes = {}
       for i = filter_ui.FIRST_ISSUE_LINE, #lines do
@@ -86,7 +86,7 @@ describe("gh.issues", function()
           end
         end
       end
-      
+
       assert.equals(1, vim.tbl_count(changes))
       assert.is_not_nil(changes[1])
       assert.equals("Add dark mode with auto-detection", changes[1].title)
@@ -98,11 +98,11 @@ describe("gh.issues", function()
     it("detects title changes for multiple issues", function()
       local lines = collection:format_list()
       local filter_ui = require("gh.ui.filter")
-      
+
       -- Change multiple issues (first issue and fourth issue)
       lines[filter_ui.FIRST_ISSUE_LINE] = "#01 │ Dark mode implementation"
       lines[filter_ui.FIRST_ISSUE_LINE + 3] = "#42 │ Refactored authentication module"
-      
+
       -- Parse changes
       local changes = {}
       for i = filter_ui.FIRST_ISSUE_LINE, #lines do
@@ -122,7 +122,7 @@ describe("gh.issues", function()
           end
         end
       end
-      
+
       assert.equals(2, vim.tbl_count(changes))
       assert.is_not_nil(changes[1])
       assert.equals("Dark mode implementation", changes[1].title)
@@ -132,10 +132,10 @@ describe("gh.issues", function()
 
     it("handles empty lines gracefully", function()
       local lines = collection:format_list()
-      
+
       -- Add empty line
       table.insert(lines, "")
-      
+
       -- Parse changes
       local filter_ui = require("gh.ui.filter")
       local changes = {}
@@ -158,17 +158,17 @@ describe("gh.issues", function()
           end
         end
       end
-      
+
       -- Should not crash
       assert.equals(0, vim.tbl_count(changes))
     end)
 
     it("ignores malformed lines", function()
       local lines = collection:format_list()
-      
+
       -- Add malformed line
       table.insert(lines, "This is not a valid issue line")
-      
+
       -- Parse changes
       local filter_ui = require("gh.ui.filter")
       local changes = {}
@@ -191,7 +191,7 @@ describe("gh.issues", function()
           end
         end
       end
-      
+
       -- Should not crash
       assert.equals(0, vim.tbl_count(changes))
     end)
@@ -202,22 +202,22 @@ describe("gh.issues", function()
     it("only includes modified issues in changes", function()
       local lines = collection:format_list()
       local filter_ui = require("gh.ui.filter")
-      
+
       -- Only modify issue #1 (first issue line), leave others unchanged
       lines[filter_ui.FIRST_ISSUE_LINE] = "#01 │ Add dark mode with system detection"
-      
+
       -- Call the actual parse function
       local changes, error = issues._test_parse_issue_list_changes(lines, collection)
-      
+
       -- Should succeed
       assert.is_not_nil(changes)
       assert.is_nil(error)
-      
+
       -- Only issue #1 should be in changes
       assert.equals(1, vim.tbl_count(changes))
       assert.is_not_nil(changes[1])
       assert.equals("Add dark mode with system detection", changes[1].title)
-      
+
       -- Other issues should NOT be in changes
       assert.is_nil(changes[2])
       assert.is_nil(changes[3])
@@ -226,17 +226,17 @@ describe("gh.issues", function()
 
     it("does not include issues with no actual changes", function()
       local lines = collection:format_list()
-      
+
       -- Keep everything the same (no changes)
       -- lines remain as formatted
-      
+
       -- Call the actual parse function
       local changes, error = issues._test_parse_issue_list_changes(lines, collection)
-      
+
       -- Should succeed
       assert.is_not_nil(changes)
       assert.is_nil(error)
-      
+
       -- No issues should be in changes
       assert.equals(0, vim.tbl_count(changes))
     end)
@@ -252,7 +252,7 @@ describe("gh.issues", function()
 
     it("formats issue detail correctly", function()
       local lines = issue:format_detail()
-      
+
       assert.equals("# Add dark mode support", lines[1])
       assert.equals("---", lines[2])
       assert.is_true(#lines > 2) -- Should have body content
@@ -260,13 +260,13 @@ describe("gh.issues", function()
 
     it("detects title change in detail view", function()
       local lines = issue:format_detail()
-      
+
       -- Change title
       lines[1] = "# Add dark mode with system detection"
-      
+
       -- Parse title
       local new_title = lines[1]:gsub("^#%s*", "")
-      
+
       assert.equals("Add dark mode with system detection", new_title)
       assert.is_not.equals(issue.title, new_title)
     end)
@@ -274,25 +274,25 @@ describe("gh.issues", function()
     it("detects body change in detail view", function()
       local original_lines = issue:format_detail()
       local lines = vim.deepcopy(original_lines)
-      
+
       -- Modify body
       table.insert(lines, "## Additional Notes")
       table.insert(lines, "This is a new section")
-      
+
       -- Parse body (skip title and separator)
       local body_lines = {}
       for i = 2, #lines do
         table.insert(body_lines, lines[i])
       end
       local new_body = table.concat(body_lines, "\n")
-      
+
       -- Parse original body
       local original_body_lines = {}
       for i = 2, #original_lines do
         table.insert(original_body_lines, original_lines[i])
       end
       local original_body = table.concat(original_body_lines, "\n")
-      
+
       assert.is_not.equals(original_body, new_body)
     end)
   end)
