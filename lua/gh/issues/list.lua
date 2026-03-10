@@ -452,12 +452,12 @@ function M.open_issue_list(repo, opts)
           end
 
           local event_repo = event.data.repo
-          local event_state = event.data.state
           local buf_repo = vim.api.nvim_buf_get_var(bufnr, "gh_repo")
           local buf_state = vim.api.nvim_buf_get_var(bufnr, "gh_issues_state")
 
-          -- Check if this event is for our repo and state
-          if (event_repo or "") == buf_repo and (not event_state or event_state == buf_state) then
+          -- Check if this event is for our repo
+          -- Always refresh when an issue is updated in this repo
+          if (event_repo or "") == buf_repo then
             -- Fetch and update buffer
             cli.issue.list({ state = buf_state, repo = repo }, function(success, fresh_issues)
               if success then

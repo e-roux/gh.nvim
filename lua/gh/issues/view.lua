@@ -192,6 +192,31 @@ function M.open_issue_detail(number, repo)
       },
     })
 
+    -- Set up autocmd to refresh issue metadata on updates
+    local view_group = vim.api.nvim_create_augroup("GhIssueViewRefresh_" .. bufnr, { clear = true })
+    vim.api.nvim_create_autocmd("User", {
+      group = view_group,
+      pattern = "GhIssueUpdated",
+      callback = function(event)
+        if not vim.api.nvim_buf_is_valid(bufnr) then
+          return
+        end
+
+        local event_issue_number = event.data.issue_number
+        local event_repo = event.data.repo
+
+        if event_issue_number == number and (event_repo or "") == (repo or "") then
+          vim.schedule(function()
+            if not vim.api.nvim_buf_is_valid(bufnr) then
+              return
+            end
+
+            M.add_issue_metadata_virtual_text(bufnr)
+          end)
+        end
+      end,
+    })
+
     -- Open in split with config options
     local config = require("gh.config")
     buffer.open_smart(bufnr, {
