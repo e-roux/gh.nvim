@@ -55,7 +55,7 @@ end
 function M.perform_delete(bufnr, repo, issue_number, _line_num)
   vim.notify(string.format("Deleting issue #%d...", issue_number), vim.log.levels.INFO)
 
-  cli.delete_issue(repo, issue_number, function(success, error)
+  cli.issue.delete(issue_number, repo, function(success, error)
     if not success then
       vim.notify(
         string.format("Failed to delete issue #%d: %s", issue_number, error or "unknown error"),

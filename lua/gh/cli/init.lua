@@ -4,6 +4,7 @@ local M = {}
 
 -- Lazy load submodules
 M.issue = require("gh.cli.issue")
+M.label = require("gh.cli.label")
 
 -- Core runner (for direct gh commands)
 M.run = require("gh.cli.core").run
@@ -73,6 +74,36 @@ function M.delete_issue(repo, issue_number, callback)
     vim.log.levels.WARN
   )
   return M.issue.delete(issue_number, repo, callback)
+end
+
+--- @deprecated Use cli.issue.list_templates instead
+function M.list_issue_templates(repo, callback)
+  return M.issue.list_templates(repo, callback)
+end
+
+--- @deprecated Use cli.issue.get_template instead
+function M.get_issue_template(repo, path, callback)
+  return M.issue.get_template(repo, path, callback)
+end
+
+--- @deprecated Use cli.issue.list_milestones instead
+function M.list_milestones(repo, callback)
+  return M.issue.list_milestones(repo, callback)
+end
+
+--- @deprecated Use cli.issue.list_projects instead
+function M.list_projects(repo, callback)
+  return M.issue.list_projects(repo, callback)
+end
+
+--- @deprecated Use cli.issue.list_contributors instead
+function M.list_contributors(repo, callback)
+  return M.issue.list_contributors(repo, callback)
+end
+
+--- @deprecated Use cli.label.list instead
+function M.list_labels(repo, callback)
+  return M.label.list({ repo = repo }, callback)
 end
 
 return M
