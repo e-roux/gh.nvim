@@ -245,4 +245,175 @@ function M.reopen(number, opts, callback)
   end)
 end
 
+--- List issue templates (local or API fallback)
+---@param repo? string Repository (owner/repo)
+---@param callback fun(success: boolean, templates: table[]|nil, error: string|nil)
+function M.list_templates(repo, callback)
+  -- Helper function to check local templates
+  local function check_local_templates()
+    local template_dir = vim.fn.getcwd() .. "/.github/ISSUE_TEMPLATE"
+    local templates = {}
+
+    -- Check if directory exists
+    if vim.fn.isdirectory(template_dir) == 1 then
+      local files = vim.fn.glob(template_dir .. "/*.md", false, true)
+      for _, file in ipairs(files) do
+        local name = vim.fn.fnamemodify(file, ":t")
+        local path = ".github/ISSUE_TEMPLATE/" .. name
+        table.insert(templates, { name = name, path = path })
+      end
+    end
+
+    return templates
+  end
+
+  -- Try to list from API
+  local args = {
+    "api",
+    "repos/{owner}/{repo}/contents/.github/ISSUE_TEMPLATE",
+    "--jq",
+    '.[] | select(.type == "file") | {name: .name, path: .path}',
+  }
+  core.add_repo_flag(args, repo)
+
+  core.run(args, function(success, result, _error)
+    if not success then
+      -- API failed, try local templates as fallback
+      local local_templates = check_local_templates()
+      if #local_templates > 0 then
+        callback(true, local_templates, nil)
+        return
+      end
+
+      callback(true, {}, nil) -- No templates found
+      return
+    end
+
+    local templates = {}
+    -- Parse line-separated JSON objects
+    for line in result:gmatch("[^\r\n]+") do
+      if line ~= "" then
+        local ok, template = pcall(vim.json.decode, line)
+        if ok and template.name then
+          table.insert(templates, template)
+        end
+      end
+    end
+
+    callback(true, templates, nil)
+  end)
+end
+
+--- Get issue template content
+---@param repo? string Repository (owner/repo)
+---@param template_path string Path to template file
+---@param callback fun(success: boolean, content: string|nil, error: string|nil)
+function M.get_template(repo, template_path, callback)
+  -- Helper function to read local template
+  local function read_local_template()
+    local local_path = vim.fn.getcwd() .. "/" .. template_path
+    if vim.fn.filereadable(local_path) == 1 then
+      local content = table.concat(vim.fn.readfile(local_path), "\n")
+      return content
+    end
+    return nil
+  end
+
+  local args = { "api", "repos/{owner}/{repo}/contents/" .. template_path, "--jq", ".content" }
+  core.add_repo_flag(args, repo)
+
+  core.run(args, function(success, result, error)
+    if not success then
+      -- Try local file as fallback
+      local local_content = read_local_template()
+      if local_content then
+        callback(true, local_content, nil)
+        return
+      end
+
+      callback(false, nil, error)
+      return
+    end
+
+    -- Decode base64 content
+    local ok, content = pcall(vim.base64.decode, result:gsub("%s+", ""))
+    if not ok then
+      callback(false, nil, "Failed to decode template content")
+      return
+    end
+    callback(true, content, nil)
+  end)
+end
+
+--- List milestones (via API)
+---@param repo? string Repository (owner/repo)
+---@param callback fun(success: boolean, milestones: table[]|nil, error: string|nil)
+function M.list_milestones(repo, callback)
+  local args = { "api", "repos/{owner}/{repo}/milestones", "--jq", ".[].title" }
+  core.add_repo_flag(args, repo)
+
+  core.run(args, function(success, result, error)
+    if not success then
+      callback(false, nil, error)
+      return
+    end
+
+    local milestones = {}
+    for line in result:gmatch("[^\r\n]+") do
+      if line ~= "" then
+        table.insert(milestones, { title = line })
+      end
+    end
+
+    callback(true, milestones, nil)
+  end)
+end
+
+--- List projects (gh project list)
+---@param repo? string Repository (owner/repo)
+---@param callback fun(success: boolean, projects: table[]|nil, error: string|nil)
+function M.list_projects(repo, callback)
+  local args = { "project", "list", "--format", "json" }
+  core.add_repo_flag(args, repo)
+
+  core.run(args, function(success, result, error)
+    if not success then
+      callback(false, nil, error)
+      return
+    end
+
+    local ok, projects, parse_error = core.parse_json(result)
+    if not ok then
+      callback(false, nil, parse_error)
+      return
+    end
+
+    callback(true, projects.projects or {}, nil)
+  end)
+end
+
+--- List contributors (via API)
+---@param repo? string Repository (owner/repo)
+---@param callback fun(success: boolean, contributors: table[]|nil, error: string|nil)
+function M.list_contributors(repo, callback)
+  local args = { "api", "repos/{owner}/{repo}/contributors", "--jq", ".[].login", "--paginate" }
+  core.add_repo_flag(args, repo)
+
+  core.run(args, function(success, result, error)
+    if not success then
+      callback(false, nil, error)
+      return
+    end
+
+    local contributors = {}
+    for line in result:gmatch("[^\r\n]+") do
+      if line ~= "" then
+        table.insert(contributors, { login = line })
+      end
+    end
+
+    callback(true, contributors, nil)
+  end)
+end
+
 return M

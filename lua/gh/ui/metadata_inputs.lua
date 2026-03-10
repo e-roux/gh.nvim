@@ -52,6 +52,13 @@ function M.render(bufnr, namespace, extmark_ids, values, start_line)
     })
   end
 
+  -- Add real blank line and separator line after all metadata
+  table.insert(lines_to_insert, "")
+  local separator_text = string.rep("━", 80)
+  table.insert(lines_to_insert, separator_text)
+  local separator_line_offset = #lines_to_insert - 1
+  table.insert(lines_to_insert, "")
+
   -- Insert all metadata lines, pushing body content down
   vim.api.nvim_buf_set_lines(bufnr, start_line, start_line, false, lines_to_insert)
 
@@ -71,31 +78,12 @@ function M.render(bufnr, namespace, extmark_ids, values, start_line)
     input_field.render_readonly_highlight(bufnr, namespace, extmark_ids, field.input, line_nr)
   end
 
-  -- Add blank line before metadata block (after title)
-  extmark_ids.blank_before = vim.api.nvim_buf_set_extmark(bufnr, namespace, start_line - 1, 0, {
-    id = extmark_ids.blank_before,
-    virt_lines = { { { "", "Normal" } } },
-    virt_lines_above = false,
-    virt_lines_leftcol = true,
-  })
-
-  -- Add separator line with blank line after all metadata
-  local separator_line = start_line + #lines_to_insert
-  local separator_virt_lines = {
-    { { "", "Normal" } }, -- blank line before separator
-    {
-      {
-        string.rep("━", 80),
-        "Comment",
-      },
-    },
-  }
-
-  extmark_ids.separator = vim.api.nvim_buf_set_extmark(bufnr, namespace, separator_line, 0, {
-    id = extmark_ids.separator,
-    virt_lines = separator_virt_lines,
-    virt_lines_above = true,
-    virt_lines_leftcol = true,
+  -- Highlight the separator line
+  local separator_line = start_line + separator_line_offset
+  vim.api.nvim_buf_set_extmark(bufnr, namespace, separator_line, 0, {
+    end_row = separator_line,
+    end_col = 80,
+    hl_group = "Comment",
   })
 end
 

@@ -150,88 +150,91 @@ function M.apply_filters(bufnr)
   -- Fetch issues with filters applied via CLI
   M.is_fetching = true
   local cli = require("gh.cli")
-  cli.list_issues(repo, filter_context, function(success, issues, error)
-    M.is_fetching = false
+  cli.issue.list(
+    vim.tbl_extend("force", filter_context, { repo = repo }),
+    function(success, issues, error)
+      M.is_fetching = false
 
-    if not success then
-      -- Extract meaningful error from CLI output
-      local meaningful_error = error or "unknown error"
+      if not success then
+        -- Extract meaningful error from CLI output
+        local meaningful_error = error or "unknown error"
 
-      -- Try to extract just the first line (the actual error)
-      local first_line = meaningful_error:match("^([^\n]+)")
-      if first_line and #first_line < 200 then
-        meaningful_error = first_line
-      end
-
-      -- If it's a validation error, show a cleaner message
-      if meaningful_error:find("invalid argument") then
-        -- Extract the specific error part
-        local arg, flag, values =
-          meaningful_error:match('invalid argument "([^"]+)" for "([^"]+)" flag: (.+)')
-        if arg and flag and values then
-          meaningful_error = string.format("Invalid value '%s' for %s: %s", arg, flag, values)
+        -- Try to extract just the first line (the actual error)
+        local first_line = meaningful_error:match("^([^\n]+)")
+        if first_line and #first_line < 200 then
+          meaningful_error = first_line
         end
+
+        -- If it's a validation error, show a cleaner message
+        if meaningful_error:find("invalid argument") then
+          -- Extract the specific error part
+          local arg, flag, values =
+            meaningful_error:match('invalid argument "([^"]+)" for "([^"]+)" flag: (.+)')
+          if arg and flag and values then
+            meaningful_error = string.format("Invalid value '%s' for %s: %s", arg, flag, values)
+          end
+        end
+
+        -- Show error as virtual text instead of notification
+        vim.api.nvim_buf_clear_namespace(bufnr, M.namespace, 0, M.FIRST_ISSUE_LINE - 1)
+        vim.api.nvim_buf_set_extmark(bufnr, M.namespace, 0, 0, {
+          virt_text = { { "⚠ " .. meaningful_error, "ErrorMsg" } },
+          virt_text_pos = "eol",
+        })
+        return
       end
 
-      -- Show error as virtual text instead of notification
-      vim.api.nvim_buf_clear_namespace(bufnr, M.namespace, 0, M.FIRST_ISSUE_LINE - 1)
-      vim.api.nvim_buf_set_extmark(bufnr, M.namespace, 0, 0, {
-        virt_text = { { "⚠ " .. meaningful_error, "ErrorMsg" } },
-        virt_text_pos = "eol",
-      })
-      return
+      local IssueCollection = require("gh.models.collection").IssueCollection
+      local collection = IssueCollection.new(issues)
+
+      -- Generate issue lines
+      local issue_lines = {}
+      for _, issue in collection:iter() do
+        table.insert(issue_lines, issue:format_list_line())
+      end
+
+      -- Update buffer: keep filter lines, update issues
+      M.is_updating_buffer = true
+      local filter_lines = vim.api.nvim_buf_get_lines(bufnr, 0, M.FIRST_ISSUE_LINE - 1, false)
+      local all_lines = vim.list_extend(filter_lines, issue_lines)
+
+      vim.api.nvim_set_option_value("modifiable", true, { buf = bufnr })
+      vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, all_lines)
+      vim.api.nvim_set_option_value("modified", false, { buf = bufnr })
+      M.is_updating_buffer = false
+
+      -- Update stored collection
+      vim.api.nvim_buf_set_var(bufnr, "gh_issues_collection", collection:to_table())
+      vim.api.nvim_buf_set_var(bufnr, "gh_filter_context", filter_context)
+
+      -- Update virtual text display
+      M.update_filter_display(bufnr)
+
+      -- Show success message with issue count and filter context
+      local count = collection:count()
+      local ctx_parts = {}
+
+      -- Build a compact filter context string (only show non-default values)
+      if filter_context.state and filter_context.state ~= "all" then
+        table.insert(ctx_parts, filter_context.state)
+      end
+      if filter_context.assignee then
+        table.insert(ctx_parts, "@" .. filter_context.assignee)
+      end
+      if filter_context.author then
+        table.insert(ctx_parts, "by:" .. filter_context.author)
+      end
+      if filter_context.label then
+        local labels = type(filter_context.label) == "table"
+            and table.concat(filter_context.label, ",")
+          or filter_context.label
+        table.insert(ctx_parts, labels)
+      end
+
+      local ctx_str = #ctx_parts > 0 and (" [" .. table.concat(ctx_parts, " ") .. "]") or ""
+      vim.notify(string.format("%d issues%s", count, ctx_str), vim.log.levels.INFO)
     end
-
-    local IssueCollection = require("gh.models.collection").IssueCollection
-    local collection = IssueCollection.new(issues)
-
-    -- Generate issue lines
-    local issue_lines = {}
-    for _, issue in collection:iter() do
-      table.insert(issue_lines, issue:format_list_line())
-    end
-
-    -- Update buffer: keep filter lines, update issues
-    M.is_updating_buffer = true
-    local filter_lines = vim.api.nvim_buf_get_lines(bufnr, 0, M.FIRST_ISSUE_LINE - 1, false)
-    local all_lines = vim.list_extend(filter_lines, issue_lines)
-
-    vim.api.nvim_set_option_value("modifiable", true, { buf = bufnr })
-    vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, all_lines)
-    vim.api.nvim_set_option_value("modified", false, { buf = bufnr })
-    M.is_updating_buffer = false
-
-    -- Update stored collection
-    vim.api.nvim_buf_set_var(bufnr, "gh_issues_collection", collection:to_table())
-    vim.api.nvim_buf_set_var(bufnr, "gh_filter_context", filter_context)
-
-    -- Update virtual text display
-    M.update_filter_display(bufnr)
-
-    -- Show success message with issue count and filter context
-    local count = collection:count()
-    local ctx_parts = {}
-
-    -- Build a compact filter context string (only show non-default values)
-    if filter_context.state and filter_context.state ~= "all" then
-      table.insert(ctx_parts, filter_context.state)
-    end
-    if filter_context.assignee then
-      table.insert(ctx_parts, "@" .. filter_context.assignee)
-    end
-    if filter_context.author then
-      table.insert(ctx_parts, "by:" .. filter_context.author)
-    end
-    if filter_context.label then
-      local labels = type(filter_context.label) == "table"
-          and table.concat(filter_context.label, ",")
-        or filter_context.label
-      table.insert(ctx_parts, labels)
-    end
-
-    local ctx_str = #ctx_parts > 0 and (" [" .. table.concat(ctx_parts, " ") .. "]") or ""
-    vim.notify(string.format("%d issues%s", count, ctx_str), vim.log.levels.INFO)
-  end)
+  )
 
   return true
 end

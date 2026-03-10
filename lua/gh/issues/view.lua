@@ -7,13 +7,11 @@ local cli = require("gh.cli")
 --- Format issue detail for display
 ---@param issue table Issue data
 ---@return string[] Formatted lines
-local function format_issue_detail(issue)
+function M.format_issue_detail(issue)
   local lines = {}
 
   -- Title
   table.insert(lines, "# " .. issue.title)
-  table.insert(lines, "")
-
   -- Body
   if issue.body and issue.body ~= "" then
     for line in (issue.body .. "\n"):gmatch("([^\n]*)\n") do
@@ -29,20 +27,26 @@ end
 --- Parse issue detail from buffer lines
 ---@param lines string[] Buffer lines
 ---@return table Parsed issue { title: string, body: string }
-local function parse_issue_detail(lines)
+function M.parse_issue_detail(lines)
   local title = ""
   local body_lines = {}
   local in_body = false
 
+  local separator = string.rep("━", 80)
   for _, line in ipairs(lines) do
     if line:match("^#%s+") and not in_body then
       -- Title line
       title = line:gsub("^#%s+", "")
-    elseif line == "" and title ~= "" and not in_body then
-      -- Empty line after title marks start of body
+    elseif line:find(separator, 1, true) and not in_body then
+      -- Separator found! The body starts after the next line (which is a blank line we added)
       in_body = true
+      -- The separator is followed by a blank line, so skip it by looking at the index
+      -- This loop will handle it in the next iterations
     elseif in_body then
-      table.insert(body_lines, line)
+      -- If it's the first line after separator, and it's blank, skip it once
+      if not (#body_lines == 0 and line == "") then
+        table.insert(body_lines, line)
+      end
     end
   end
 
@@ -54,7 +58,7 @@ end
 
 --- Add virtual text metadata to issue buffer
 ---@param bufnr integer Buffer number
-local function add_issue_metadata_virtual_text(bufnr)
+function M.add_issue_metadata_virtual_text(bufnr)
   local ok, issue = pcall(vim.api.nvim_buf_get_var, bufnr, "gh_original_issue")
   if not ok or not issue then
     return
@@ -69,7 +73,7 @@ end
 ---@param number integer Issue number
 ---@param repo string|nil Repository (owner/repo) or nil for current repo
 function M.open_issue_detail(number, repo)
-  cli.get_issue(number, repo, function(success, issue, error)
+  cli.issue.view(number, repo, function(success, issue, error)
     if not success then
       vim.notify("Failed to fetch issue: " .. (error or "unknown error"), vim.log.levels.ERROR)
       return
@@ -81,7 +85,7 @@ function M.open_issue_detail(number, repo)
     local bufnr = buffer.create_scratch(buf_name)
 
     -- Format and display issue
-    local lines = format_issue_detail(issue)
+    local lines = M.format_issue_detail(issue)
     buffer.set_lines(bufnr, lines)
 
     -- Store original issue
@@ -90,12 +94,12 @@ function M.open_issue_detail(number, repo)
     vim.api.nvim_buf_set_var(bufnr, "gh_original_issue", issue)
 
     -- Add virtual text metadata
-    add_issue_metadata_virtual_text(bufnr)
+    M.add_issue_metadata_virtual_text(bufnr)
 
     -- Set up write handler
     buffer.on_write(bufnr, function(buf)
       local current_lines = buffer.get_lines(buf)
-      local parsed = parse_issue_detail(current_lines)
+      local parsed = M.parse_issue_detail(current_lines)
       local issue_number = vim.api.nvim_buf_get_var(buf, "gh_issue_number")
       local target_repo = vim.api.nvim_buf_get_var(buf, "gh_repo")
       local original = vim.api.nvim_buf_get_var(buf, "gh_original_issue")
@@ -110,23 +114,33 @@ function M.open_issue_detail(number, repo)
       -- Update title if changed
       if parsed.title ~= original.title then
         pending = pending + 1
-        cli.update_title(issue_number, parsed.title, target_repo, function(title_success, err)
-          pending = pending - 1
-          if not title_success then
-            table.insert(errors, "title: " .. (err or "unknown"))
+        cli.issue.edit(
+          issue_number,
+          { title = parsed.title },
+          target_repo,
+          function(title_success, err)
+            pending = pending - 1
+            if not title_success then
+              table.insert(errors, "title: " .. (err or "unknown"))
+            end
           end
-        end)
+        )
       end
 
       -- Update body if changed
       if parsed.body ~= original.body then
         pending = pending + 1
-        cli.update_body(issue_number, parsed.body, target_repo, function(body_success, err)
-          pending = pending - 1
-          if not body_success then
-            table.insert(errors, "body: " .. (err or "unknown"))
+        cli.issue.edit(
+          issue_number,
+          { body = parsed.body },
+          target_repo,
+          function(body_success, err)
+            pending = pending - 1
+            if not body_success then
+              table.insert(errors, "body: " .. (err or "unknown"))
+            end
           end
-        end)
+        )
       end
 
       if pending == 0 then
@@ -143,6 +157,18 @@ function M.open_issue_detail(number, repo)
         vim.notify("Errors saving changes:\n" .. table.concat(errors, "\n"), vim.log.levels.ERROR)
         return false
       end
+
+      -- Trigger refresh of list buffers
+      vim.schedule(function()
+        vim.api.nvim_exec_autocmds("User", {
+          pattern = "GhIssueUpdated",
+          data = {
+            issue_number = issue_number,
+            repo = target_repo,
+            title = parsed.title,
+          },
+        })
+      end)
 
       return true
     end)

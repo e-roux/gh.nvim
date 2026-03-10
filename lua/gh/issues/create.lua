@@ -180,7 +180,7 @@ function M.create_issue_buffer(opts)
         -- Show creating message immediately
         vim.notify("Creating issue...", vim.log.levels.INFO)
 
-        cli.create_issue(create_opts, function(success, issue, error)
+        cli.issue.create(create_opts, function(success, issue, error)
           if not success then
             vim.schedule(function()
               vim.notify(
@@ -229,7 +229,7 @@ function M.create_issue_buffer(opts)
               end, 500)
 
               -- Fetch the full issue data to update virtual text with actual data
-              cli.get_issue(
+              cli.issue.view(
                 issue.number,
                 target_repo,
                 function(fetch_success, full_issue, _fetch_error)
@@ -266,7 +266,7 @@ function M.create_issue_buffer(opts)
         -- Update title if changed
         if title ~= original.title then
           pending = pending + 1
-          cli.update_title(issue_number, title, target_repo, function(success, err)
+          cli.issue.edit(issue_number, { title = title }, target_repo, function(success, err)
             pending = pending - 1
             if not success then
               table.insert(errors, "title: " .. (err or "unknown"))
@@ -277,7 +277,7 @@ function M.create_issue_buffer(opts)
         -- Update body if changed
         if body ~= original.body then
           pending = pending + 1
-          cli.update_body(issue_number, body, target_repo, function(success, err)
+          cli.issue.edit(issue_number, { body = body }, target_repo, function(success, err)
             pending = pending - 1
             if not success then
               table.insert(errors, "body: " .. (err or "unknown"))
@@ -326,7 +326,7 @@ function M.create_issue_buffer(opts)
 
   -- If template is specified, fetch it
   if opts.template then
-    cli.get_issue_template(repo, opts.template, function(success, content, error)
+    cli.issue.get_template(repo, opts.template, function(success, content, error)
       if not success then
         vim.notify("Failed to fetch template: " .. (error or "unknown error"), vim.log.levels.WARN)
         create_buffer_with_content("")
@@ -336,7 +336,7 @@ function M.create_issue_buffer(opts)
     end)
   else
     -- No template specified, check if templates exist and prompt user
-    cli.list_issue_templates(repo, function(success, templates, _error)
+    cli.issue.list_templates(repo, function(success, templates, _error)
       if not success or not templates or #templates == 0 then
         -- No templates, create empty buffer
         create_buffer_with_content("")
@@ -368,7 +368,7 @@ function M.create_issue_buffer(opts)
         end
 
         if selected_template then
-          cli.get_issue_template(
+          cli.issue.get_template(
             repo,
             selected_template.path,
             function(tmpl_success, content, tmpl_error)
@@ -403,7 +403,7 @@ function M.get_assignee_completions(repo, callback)
       -- Add "@me" as first option
       local assignees = { "@me" }
 
-      cli.list_contributors(repo, function(success, contributors, _error)
+      cli.issue.list_contributors(repo, function(success, contributors, _error)
         if success and contributors then
           -- Limit to 10 contributors
           for i = 1, math.min(10, #contributors) do
@@ -427,7 +427,7 @@ function M.get_label_completions(repo, callback)
   cache.get_or_fetch(
     cache_key,
     function(cb)
-      cli.list_labels(repo, function(success, labels, _error)
+      cli.label.list({ repo = repo }, function(success, labels, _error)
         if not success or not labels then
           cb({})
           return
@@ -454,7 +454,7 @@ function M.get_milestone_completions(repo, callback)
   cache.get_or_fetch(
     cache_key,
     function(cb)
-      cli.list_milestones(repo, function(success, milestones, _error)
+      cli.issue.list_milestones(repo, function(success, milestones, _error)
         if not success or not milestones then
           cb({})
           return
@@ -481,7 +481,7 @@ function M.get_project_completions(repo, callback)
   cache.get_or_fetch(
     cache_key,
     function(cb)
-      cli.list_projects(repo, function(success, projects, _error)
+      cli.issue.list_projects(repo, function(success, projects, _error)
         if not success or not projects then
           cb({})
           return

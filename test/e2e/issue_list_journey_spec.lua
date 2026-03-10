@@ -20,9 +20,9 @@ describe("E2E: Issue List Journey", function()
     it("should open issue list buffer", function()
       -- Mock CLI response
       local cli = require("gh.cli")
-      local original_list = cli.list_issues
+      local original_list = cli.issue.list
 
-      cli.list_issues = function(repo, opts, callback)
+      cli.issue.list = function(opts, callback)
         callback(true, {
           {
             number = 1,
@@ -63,15 +63,15 @@ describe("E2E: Issue List Journey", function()
       assert.are.equal("acwrite", vim.bo.buftype)
 
       -- Restore original function
-      cli.list_issues = original_list
+      cli.issue.list = original_list
     end)
 
     it("should filter issues by state", function()
       local cli = require("gh.cli")
-      local original_list = cli.list_issues
+      local original_list = cli.issue.list
       local captured_opts = nil
 
-      cli.list_issues = function(repo, opts, callback)
+      cli.issue.list = function(opts, callback)
         captured_opts = opts
         callback(true, {}, nil)
       end
@@ -84,16 +84,16 @@ describe("E2E: Issue List Journey", function()
       assert.is_not_nil(captured_opts)
       assert.are.equal("closed", captured_opts.state)
 
-      cli.list_issues = original_list
+      cli.issue.list = original_list
     end)
   end)
 
   describe("User Journey: View issue detail", function()
     it("should open issue detail buffer", function()
       local cli = require("gh.cli")
-      local original_get = cli.get_issue
+      local original_get = cli.issue.view
 
-      cli.get_issue = function(number, repo, callback)
+      cli.issue.view = function(number, opts, callback)
         callback(true, {
           number = 123,
           title = "Test Issue",
@@ -116,18 +116,18 @@ describe("E2E: Issue List Journey", function()
       local bufname = vim.api.nvim_buf_get_name(0)
       assert.is_true(bufname:match("gh://issue/123") ~= nil)
 
-      cli.get_issue = original_get
+      cli.issue.view = original_get
     end)
   end)
 
   describe("User Journey: Navigate between list and detail", function()
     it("should allow navigation from list to detail", function()
       local cli = require("gh.cli")
-      local original_list = cli.list_issues
-      local original_get = cli.get_issue
+      local original_list = cli.issue.list
+      local original_get = cli.issue.view
 
       -- Mock list response
-      cli.list_issues = function(repo, opts, callback)
+      cli.issue.list = function(opts, callback)
         callback(true, {
           {
             number = 1,
@@ -143,7 +143,7 @@ describe("E2E: Issue List Journey", function()
       end
 
       -- Mock get response
-      cli.get_issue = function(number, repo, callback)
+      cli.issue.view = function(number, opts, callback)
         callback(true, {
           number = number,
           title = "Issue " .. number,
@@ -181,8 +181,8 @@ describe("E2E: Issue List Journey", function()
       local bufname = vim.api.nvim_buf_get_name(detail_bufnr)
       assert.is_true(bufname:match("gh://issue/1") ~= nil)
 
-      cli.list_issues = original_list
-      cli.get_issue = original_get
+      cli.issue.list = original_list
+      cli.issue.view = original_get
     end)
   end)
 end)

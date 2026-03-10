@@ -15,10 +15,10 @@ describe("E2E: Issue Creation Journey", function()
   describe("User Journey: Create issue without template", function()
     it("should create issue buffer with empty template", function()
       local cli = require("gh.cli")
-      local original_templates = cli.list_issue_templates
+      local original_templates = cli.issue.list_templates
 
       -- Mock: no templates available
-      cli.list_issue_templates = function(repo, callback)
+      cli.issue.list_templates = function(repo, callback)
         callback(true, {}, nil)
       end
 
@@ -31,23 +31,23 @@ describe("E2E: Issue Creation Journey", function()
       assert.is_true(bufname:match("gh://issue/new") ~= nil)
       assert.are.equal("acwrite", vim.bo.buftype)
 
-      cli.list_issue_templates = original_templates
+      cli.issue.list_templates = original_templates
     end)
   end)
 
   describe("User Journey: Create issue with template", function()
     it("should load template content", function()
       local cli = require("gh.cli")
-      local original_templates = cli.list_issue_templates
-      local original_get_template = cli.get_issue_template
+      local original_templates = cli.issue.list_templates
+      local original_get_template = cli.issue.get_template
 
-      cli.list_issue_templates = function(repo, callback)
+      cli.issue.list_templates = function(repo, callback)
         callback(true, {
           { name = "bug_report.md", path = ".github/ISSUE_TEMPLATE/bug_report.md" },
         }, nil)
       end
 
-      cli.get_issue_template = function(repo, path, callback)
+      cli.issue.get_template = function(repo, path, callback)
         callback(true, "## Bug Description\n\nDescribe the bug here.", nil)
       end
 
@@ -66,17 +66,17 @@ describe("E2E: Issue Creation Journey", function()
       end
       assert.is_true(has_template_content)
 
-      cli.list_issue_templates = original_templates
-      cli.get_issue_template = original_get_template
+      cli.issue.list_templates = original_templates
+      cli.issue.get_template = original_get_template
     end)
   end)
 
   describe("User Journey: Create issue with metadata", function()
     it("should create buffer with assignees and labels", function()
       local cli = require("gh.cli")
-      local original_templates = cli.list_issue_templates
+      local original_templates = cli.issue.list_templates
 
-      cli.list_issue_templates = function(repo, callback)
+      cli.issue.list_templates = function(repo, callback)
         callback(true, {}, nil)
       end
 
@@ -101,23 +101,23 @@ describe("E2E: Issue Creation Journey", function()
       assert.are.same({ "bug", "urgent" }, opts.labels)
       assert.are.equal("v1.0", opts.milestone)
 
-      cli.list_issue_templates = original_templates
+      cli.issue.list_templates = original_templates
     end)
   end)
 
   describe("User Journey: Save new issue", function()
     it("should call create_issue on save", function()
       local cli = require("gh.cli")
-      local original_templates = cli.list_issue_templates
-      local original_create = cli.create_issue
+      local original_templates = cli.issue.list_templates
+      local original_create = cli.issue.create
       local create_called = false
       local create_opts = nil
 
-      cli.list_issue_templates = function(repo, callback)
+      cli.issue.list_templates = function(repo, callback)
         callback(true, {}, nil)
       end
 
-      cli.create_issue = function(opts, callback)
+      cli.issue.create = function(opts, callback)
         create_called = true
         create_opts = opts
         callback(true, { number = 123, url = "https://github.com/test/repo/issues/123" }, nil)
@@ -143,18 +143,18 @@ describe("E2E: Issue Creation Journey", function()
       assert.are.equal("My Test Issue", create_opts.title)
       assert.are.equal("Issue body content", create_opts.body)
 
-      cli.list_issue_templates = original_templates
-      cli.create_issue = original_create
+      cli.issue.list_templates = original_templates
+      cli.issue.create = original_create
     end)
   end)
 
   describe("User Journey: Create from issue list", function()
     it("should create issue from list with <leader>n", function()
       local cli = require("gh.cli")
-      local original_list = cli.list_issues
-      local original_templates = cli.list_issue_templates
+      local original_list = cli.issue.list
+      local original_templates = cli.issue.list_templates
 
-      cli.list_issues = function(repo, opts, callback)
+      cli.issue.list = function(opts, callback)
         callback(true, {
           {
             number = 1,
@@ -169,7 +169,7 @@ describe("E2E: Issue Creation Journey", function()
         }, nil)
       end
 
-      cli.list_issue_templates = function(repo, callback)
+      cli.issue.list_templates = function(repo, callback)
         callback(true, {}, nil)
       end
 
@@ -196,8 +196,8 @@ describe("E2E: Issue Creation Journey", function()
       local bufname = vim.api.nvim_buf_get_name(create_bufnr)
       assert.is_true(bufname:match("gh://issue/new") ~= nil)
 
-      cli.list_issues = original_list
-      cli.list_issue_templates = original_templates
+      cli.issue.list = original_list
+      cli.issue.list_templates = original_templates
     end)
   end)
 end)

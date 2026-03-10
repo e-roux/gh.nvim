@@ -15,10 +15,10 @@ describe("E2E: Command Flow", function()
   describe("User Journey: Execute issue list command", function()
     it("should handle :Gh issue list", function()
       local cli = require("gh.cli")
-      local original_list = cli.list_issues
+      local original_list = cli.issue.list
       local list_called = false
 
-      cli.list_issues = function(repo, opts, callback)
+      cli.issue.list = function(opts, callback)
         list_called = true
         callback(true, {
           {
@@ -41,15 +41,15 @@ describe("E2E: Command Flow", function()
 
       assert.is_true(list_called)
 
-      cli.list_issues = original_list
+      cli.issue.list = original_list
     end)
 
     it("should handle :Gh issue list --state closed", function()
       local cli = require("gh.cli")
-      local original_list = cli.list_issues
+      local original_list = cli.issue.list
       local captured_opts = nil
 
-      cli.list_issues = function(repo, opts, callback)
+      cli.issue.list = function(opts, callback)
         captured_opts = opts
         callback(true, {}, nil)
       end
@@ -62,18 +62,18 @@ describe("E2E: Command Flow", function()
       assert.is_not_nil(captured_opts)
       assert.are.equal("closed", captured_opts.state)
 
-      cli.list_issues = original_list
+      cli.issue.list = original_list
     end)
   end)
 
   describe("User Journey: Execute issue view command", function()
     it("should handle :Gh issue view 123", function()
       local cli = require("gh.cli")
-      local original_get = cli.get_issue
+      local original_get = cli.issue.view
       local get_called = false
       local captured_number = nil
 
-      cli.get_issue = function(number, repo, callback)
+      cli.issue.view = function(number, opts, callback)
         get_called = true
         captured_number = number
         callback(true, {
@@ -98,17 +98,17 @@ describe("E2E: Command Flow", function()
       assert.is_true(get_called)
       assert.are.equal(123, captured_number)
 
-      cli.get_issue = original_get
+      cli.issue.view = original_get
     end)
   end)
 
   describe("User Journey: Execute issue create command", function()
     it("should handle :Gh issue create", function()
       local cli = require("gh.cli")
-      local original_templates = cli.list_issue_templates
+      local original_templates = cli.issue.list_templates
       local templates_called = false
 
-      cli.list_issue_templates = function(repo, callback)
+      cli.issue.list_templates = function(repo, callback)
         templates_called = true
         callback(true, {}, nil)
       end
@@ -123,14 +123,14 @@ describe("E2E: Command Flow", function()
       local bufname = vim.api.nvim_buf_get_name(0)
       assert.is_true(bufname:match("gh://issue/new") ~= nil)
 
-      cli.list_issue_templates = original_templates
+      cli.issue.list_templates = original_templates
     end)
 
     it("should handle :Gh issue create --title 'Test' --label bug", function()
       local cli = require("gh.cli")
-      local original_templates = cli.list_issue_templates
+      local original_templates = cli.issue.list_templates
 
-      cli.list_issue_templates = function(repo, callback)
+      cli.issue.list_templates = function(repo, callback)
         callback(true, {}, nil)
       end
 
@@ -144,7 +144,7 @@ describe("E2E: Command Flow", function()
       assert.is_true(ok)
       assert.are.same({ "bug" }, opts.labels)
 
-      cli.list_issue_templates = original_templates
+      cli.issue.list_templates = original_templates
     end)
   end)
 
