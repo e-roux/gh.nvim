@@ -211,7 +211,12 @@ function M.open_issue_detail(number, repo)
               return
             end
 
-            M.add_issue_metadata_virtual_text(bufnr)
+            cli.issue.view(number, repo, function(ok, fresh_issue)
+              if ok then
+                vim.api.nvim_buf_set_var(bufnr, "gh_original_issue", fresh_issue)
+                M.add_issue_metadata_virtual_text(bufnr)
+              end
+            end)
           end)
         end
       end,

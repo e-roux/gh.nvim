@@ -10,13 +10,15 @@ local cache = require("gh.cache")
 ---@param opts? table Options (comment, reason)
 function M.close_issue(number, repo, opts)
   opts = opts or {}
+  local state = "open"
+  local cache_key = string.format("issues_%s_%s", repo and repo:gsub("/", "_") or "current", state)
   cli.issue.close(
     number,
     { repo = repo, comment = opts.comment, reason = opts.reason },
     function(success, error)
       if success then
         vim.notify(string.format("Issue #%d closed", number), vim.log.levels.INFO)
-        cache.clear("issues_list_" .. (repo or "current"))
+        cache.clear(cache_key)
         vim.schedule(function()
           vim.api.nvim_exec_autocmds("User", {
             pattern = "GhIssueUpdated",
@@ -43,10 +45,12 @@ end
 ---@param opts? table Options (comment)
 function M.reopen_issue(number, repo, opts)
   opts = opts or {}
+  local state = "closed"
+  local cache_key = string.format("issues_%s_%s", repo and repo:gsub("/", "_") or "current", state)
   cli.issue.reopen(number, { repo = repo, comment = opts.comment }, function(success, error)
     if success then
       vim.notify(string.format("Issue #%d reopened", number), vim.log.levels.INFO)
-      cache.clear("issues_list_" .. (repo or "current"))
+      cache.clear(cache_key)
       vim.schedule(function()
         vim.api.nvim_exec_autocmds("User", {
           pattern = "GhIssueUpdated",

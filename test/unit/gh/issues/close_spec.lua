@@ -15,6 +15,12 @@ describe("gh.issues.close", function()
         list = function(opts, callback)
           callback(true, { { number = 1, title = "Test" } }, nil)
         end,
+        close = function(number, opts, callback)
+          callback(true, nil)
+        end,
+        reopen = function(number, opts, callback)
+          callback(true, nil)
+        end,
       }
     }
     package.loaded["gh.cli"] = cli_mock
@@ -28,7 +34,7 @@ describe("gh.issues.close", function()
 
   describe("close_issue", function()
     it("should close an issue", function(done)
-      close.close_issue(1, { repo = "owner/repo" }, function(success, error)
+      close.close_issue(1, "owner/repo", {}, function(success, error)
         assert.is_true(success)
         assert.is_nil(error)
         done()
@@ -38,7 +44,7 @@ describe("gh.issues.close", function()
 
   describe("reopen_issue", function()
     it("should reopen an issue", function(done)
-      close.reopen_issue(1, { repo = "owner/repo" }, function(success, error)
+      close.reopen_issue(1, "owner/repo", {}, function(success, error)
         assert.is_true(success)
         assert.is_nil(error)
         done()
