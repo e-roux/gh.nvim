@@ -225,9 +225,6 @@ end
 function IssueCollection:format_list(filter_context)
   filter_context = filter_context or {}
 
-  -- Load filter definitions to get label widths
-  local filter_ui = require("gh.ui.filter")
-
   -- Start with an empty header line (line 0) for help text virtual overlay
   local lines = { "" }
 

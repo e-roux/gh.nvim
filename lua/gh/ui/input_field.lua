@@ -76,7 +76,6 @@ end
 function M.render_inline_label(bufnr, namespace, extmark_ids, field, line_nr)
   local icon = field.icon or ""
   local label_text = icon .. (icon ~= "" and " " or "") .. field.label .. ": "
-  local hl_group = field.read_only and "Comment" or "Title"
 
   extmark_ids[field.name] = vim.api.nvim_buf_set_extmark(bufnr, namespace, line_nr, 0, {
     id = extmark_ids[field.name],
@@ -184,7 +183,7 @@ end
 ---@param extmark_ids table<string, integer> Extmark IDs
 ---@param fields InputField[] List of fields
 ---@param update_callback function Callback to update display
-function M.setup_keymaps(bufnr, namespace, extmark_ids, fields, update_callback)
+function M.setup_keymaps(bufnr, _namespace, _extmark_ids, fields, update_callback)
   -- Clear field with dd (set to empty, don't delete line)
   vim.keymap.set("n", "dd", function()
     local cursor = vim.api.nvim_win_get_cursor(0)

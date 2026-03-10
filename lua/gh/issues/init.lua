@@ -7,6 +7,7 @@ local list = require("gh.issues.list") -- gh issue list
 local view = require("gh.issues.view") -- gh issue view
 local create = require("gh.issues.create") -- gh issue create
 local delete = require("gh.issues.delete") -- gh issue delete
+local close = require("gh.issues.close") -- gh issue close/reopen
 
 -- Export list functions (gh issue list)
 M.open_issue_list = list.open_issue_list
@@ -24,6 +25,11 @@ M.get_template_completions = create.get_template_completions
 
 -- Export delete functions (gh issue delete)
 M.delete_issue_at_cursor = delete.delete_issue_at_cursor
+
+-- Export close/reopen functions
+M.close_issue = close.close_issue
+M.reopen_issue = close.reopen_issue
+M.get_issue_completions = close.get_issue_completions
 
 -- Setup autocmds
 M.setup_autocmds = list.setup_autocmds

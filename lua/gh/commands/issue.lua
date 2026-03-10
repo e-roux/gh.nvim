@@ -127,6 +127,75 @@ local function parse_create_args(args)
   return create_opts
 end
 
+--- Parse issue close command arguments
+---@param args string[] Command arguments starting after "issue close"
+---@return integer|nil number Issue number
+---@return string|nil repo Repository name
+---@return table opts Options (comment, reason)
+local function parse_close_args(args)
+  local number = nil
+  local repo = nil
+  local opts = {}
+
+  local i = 1
+  while i <= #args do
+    local arg = args[i]
+    if not arg then
+      break
+    end
+    if arg == "--repo" or arg == "-R" then
+      repo = args[i + 1]
+      i = i + 2
+    elseif arg == "--comment" or arg == "-c" then
+      opts.comment = args[i + 1]
+      i = i + 2
+    elseif arg == "--reason" or arg == "-r" then
+      opts.reason = args[i + 1]
+      i = i + 2
+    elseif not number and tonumber(arg) then
+      number = tonumber(arg)
+      i = i + 1
+    else
+      i = i + 1
+    end
+  end
+
+  return number, repo, opts
+end
+
+--- Parse issue reopen command arguments
+---@param args string[] Command arguments starting after "issue reopen"
+---@return integer|nil number Issue number
+---@return string|nil repo Repository name
+---@return table opts Options (comment)
+local function parse_reopen_args(args)
+  local number = nil
+  local repo = nil
+  local opts = {}
+
+  local i = 1
+  while i <= #args do
+    local arg = args[i]
+    if not arg then
+      break
+    end
+    if arg == "--repo" or arg == "-R" then
+      repo = args[i + 1]
+      i = i + 2
+    elseif arg == "--comment" or arg == "-c" then
+      opts.comment = args[i + 1]
+      i = i + 2
+    elseif not number and tonumber(arg) then
+      number = tonumber(arg)
+      i = i + 1
+    else
+      i = i + 1
+    end
+  end
+
+  return number, repo, opts
+end
+
 --- Handle issue list command
 ---@param args string[] Command arguments starting after "issue list"
 function M.list(args)
@@ -157,6 +226,64 @@ function M.create(args)
   gh.issues.create_issue_buffer(create_opts)
 end
 
+--- Handle issue close command
+---@param args string[] Command arguments starting after "issue close"
+function M.close(args)
+  local number, repo, opts = parse_close_args(args)
+
+  if not number then
+    -- Try to get number from buffer
+    local ok, buf_number = pcall(vim.api.nvim_buf_get_var, 0, "gh_issue_number")
+    if ok then
+      number = buf_number
+      local buf_repo_ok, buf_repo = pcall(vim.api.nvim_buf_get_var, 0, "gh_repo")
+      if buf_repo_ok and buf_repo ~= "" then
+        repo = repo or buf_repo
+      end
+    end
+  end
+
+  if not number then
+    vim.notify(
+      "Usage: :Gh issue close [number] [--repo owner/repo] [--comment msg] [--reason reason]",
+      vim.log.levels.ERROR
+    )
+    return
+  end
+
+  local issues = require("gh.issues")
+  issues.close_issue(number, repo, opts)
+end
+
+--- Handle issue reopen command
+---@param args string[] Command arguments starting after "issue reopen"
+function M.reopen(args)
+  local number, repo, opts = parse_reopen_args(args)
+
+  if not number then
+    -- Try to get number from buffer
+    local ok, buf_number = pcall(vim.api.nvim_buf_get_var, 0, "gh_issue_number")
+    if ok then
+      number = buf_number
+      local buf_repo_ok, buf_repo = pcall(vim.api.nvim_buf_get_var, 0, "gh_repo")
+      if buf_repo_ok and buf_repo ~= "" then
+        repo = repo or buf_repo
+      end
+    end
+  end
+
+  if not number then
+    vim.notify(
+      "Usage: :Gh issue reopen [number] [--repo owner/repo] [--comment msg]",
+      vim.log.levels.ERROR
+    )
+    return
+  end
+
+  local issues = require("gh.issues")
+  issues.reopen_issue(number, repo, opts)
+end
+
 --- Main issue command dispatcher
 ---@param args string[] Full command arguments starting after "issue"
 function M.handle(args)
@@ -174,6 +301,10 @@ function M.handle(args)
     M.view(subargs)
   elseif subcommand == "create" then
     M.create(subargs)
+  elseif subcommand == "close" then
+    M.close(subargs)
+  elseif subcommand == "reopen" then
+    M.reopen(subargs)
   else
     vim.notify("Unknown issue subcommand: " .. subcommand, vim.log.levels.ERROR)
   end
@@ -342,6 +473,63 @@ function M.complete(arg_lead, args)
       return vim.tbl_filter(function(item)
         return vim.startswith(item, arg_lead)
       end, candidates)
+    end
+  end
+
+  -- Completion for issue close/reopen flags and numbers
+  if subcommand == "close" or subcommand == "reopen" then
+    local prev_arg = #args > 1 and args[#args] or nil
+
+    -- Complete reason values for close
+    if subcommand == "close" and (prev_arg == "--reason" or prev_arg == "-r") then
+      local candidates = { "completed", "not planned" }
+      return vim.tbl_filter(function(item)
+        return vim.startswith(item, arg_lead)
+      end, candidates)
+    end
+
+    -- Complete flags
+    if vim.startswith(arg_lead, "-") then
+      local candidates = { "--repo", "-R", "--comment", "-c" }
+      if subcommand == "close" then
+        table.insert(candidates, "--reason")
+        table.insert(candidates, "-r")
+      end
+      return vim.tbl_filter(function(item)
+        return vim.startswith(item, arg_lead)
+      end, candidates)
+    end
+
+    -- Complete issue numbers (async with TTL cache)
+    if not vim.startswith(arg_lead, "-") then
+      local repo = nil
+      for i = 2, #args do
+        if (args[i] == "--repo" or args[i] == "-R") and args[i + 1] then
+          repo = args[i + 1]
+          break
+        end
+      end
+
+      local state = subcommand == "close" and "open" or "closed"
+      local issues_mod = require("gh.issues")
+      issues_mod.get_issue_completions(repo, state, function(_)
+        -- Data is cached; completion will be available on next trigger
+      end)
+
+      -- Try to read from cache now
+      local cache = require("gh.cache")
+      local cache_key = string.format("issues_completion_%s_%s", repo or "current", state)
+      local cached_issues = cache.read(cache_key)
+
+      if cached_issues then
+        local candidates = {}
+        for _, issue in ipairs(cached_issues) do
+          table.insert(candidates, tostring(issue.number))
+        end
+        return vim.tbl_filter(function(item)
+          return vim.startswith(item, arg_lead)
+        end, candidates)
+      end
     end
   end
 

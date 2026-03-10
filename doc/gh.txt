@@ -256,6 +256,9 @@ Issue Detail Buffer:~
 
 Lua API for advanced usage:
 
+------------------------------------------------------------------------------
+8.1 High-Level API                                            *gh-api-high-level*
+
 gh.issues.open_issue_list({repo}, {opts})            *gh.issues.open_issue_list*
     Open an issue list buffer.
 
@@ -280,29 +283,191 @@ gh.issues.open_issue_detail({number}, {repo})       *gh.issues.open_issue_detail
         require("gh").issues.open_issue_detail(123)
 <
 
-gh.cli.list_issues({repo}, {opts}, {callback})          *gh.cli.list_issues*
-    Fetch issues via GitHub CLI.
+------------------------------------------------------------------------------
+8.2 CLI API (NEW)                                              *gh-api-cli*
+
+The CLI API mirrors the `gh` CLI structure exactly:
+
+    gh <command> <subcommand> [flags]
+       ↓         ↓           ↓
+    cli.issue   .list       ({ state = "all" })
+
+All operations are async and use callbacks.
+
+cli.issue.list({opts}, {callback})                         *cli.issue.list*
+    List issues from a repository.
+    
+    Mirrors: `gh issue list`
 
     Parameters: ~
-        {repo}      string|nil  Repository or nil for current
-        {opts}      table|nil   Options (state, limit)
-        {callback}  function    Called with (success, issues, error)
+        {opts}      table|nil  Options (see below)
+        {callback}  function   Called with (success, issues, error)
+
+    Options: ~
+        state       string     "open", "closed", or "all" (default: "open")
+        limit       integer    Number of issues (default: 30)
+        assignee    string     Filter by assignee (e.g., "@me")
+        author      string     Filter by author
+        label       string[]   Filter by label(s)
+        mention     string     Filter by mention
+        milestone   string     Filter by milestone
+        search      string     Search query
+        repo        string     Repository (owner/repo)
 
     Example: >lua
-        require("gh.cli").list_issues(nil, { state = "all" }, function(success, issues, error)
+        local cli = require("gh.cli")
+        
+        -- Simple list
+        cli.issue.list(function(success, issues, error)
           if success then
-            vim.print(issues)
+            for _, issue in ipairs(issues) do
+              print(issue.number, issue.title)
+            end
+          end
+        end)
+        
+        -- With filters
+        cli.issue.list({
+          state = "all",
+          limit = 100,
+          assignee = "@me",
+          label = { "bug", "high-priority" },
+        }, callback)
+<
+
+cli.issue.view({number}, {opts}, {callback})                 *cli.issue.view*
+    Get details for a single issue.
+    
+    Mirrors: `gh issue view <number>`
+
+    Parameters: ~
+        {number}    integer    Issue number
+        {opts}      table|nil  Options (repo)
+        {callback}  function   Called with (success, issue, error)
+
+    Example: >lua
+        cli.issue.view(123, function(success, issue, error)
+          if success then
+            print(issue.title)
+          end
+        end)
+        
+        -- With repo
+        cli.issue.view(123, { repo = "owner/repo" }, callback)
+<
+
+cli.issue.create({opts}, {callback})                       *cli.issue.create*
+    Create a new issue.
+    
+    Mirrors: `gh issue create`
+
+    Parameters: ~
+        {opts}      table     Options (see below)
+        {callback}  function  Called with (success, issue, error)
+
+    Options: ~
+        title       string     Issue title (required)
+        body        string     Issue body
+        assignee    string[]   Assignee username(s)
+        label       string[]   Label(s)
+        milestone   string     Milestone
+        project     string     Project
+        repo        string     Repository (owner/repo)
+
+    Example: >lua
+        cli.issue.create({
+          title = "Bug report",
+          body = "Found a bug in the login page",
+          assignee = { "user1", "user2" },
+          label = { "bug", "needs-review" },
+          milestone = "v1.0",
+        }, function(success, issue, error)
+          if success then
+            print("Created issue #" .. issue.number)
           end
         end)
 <
 
-gh.cli.get_issue({number}, {repo}, {callback})             *gh.cli.get_issue*
-    Fetch a single issue via GitHub CLI.
+cli.issue.edit({number}, {fields}, {opts}, {callback})        *cli.issue.edit*
+    Edit an existing issue.
+    
+    Mirrors: `gh issue edit <number>`
 
     Parameters: ~
-        {number}    integer     Issue number
-        {repo}      string|nil  Repository or nil for current
-        {callback}  function    Called with (success, issue, error)
+        {number}    integer    Issue number
+        {fields}    table      Fields to update (see below)
+        {opts}      table|nil  Options (repo)
+        {callback}  function   Called with (success, error)
+
+    Fields: ~
+        title       string     New title
+        body        string     New body
+        state       string     New state ("open" or "closed")
+        assignee    string[]   Assignee(s) to add
+        label       string[]   Label(s) to add
+
+    Example: >lua
+        -- Update title and body in one call
+        cli.issue.edit(123, {
+          title = "Updated title",
+          body = "Updated body",
+        }, callback)
+        
+        -- Close an issue
+        cli.issue.edit(123, { state = "closed" }, callback)
+<
+
+cli.issue.delete({number}, {opts}, {callback})              *cli.issue.delete*
+    Delete an issue.
+    
+    Mirrors: `gh issue delete <number>`
+
+    Parameters: ~
+        {number}    integer    Issue number
+        {opts}      table|nil  Options (repo)
+        {callback}  function   Called with (success, error)
+
+    Example: >lua
+        cli.issue.delete(123, function(success, error)
+          if success then
+            print("Issue deleted")
+          end
+        end)
+<
+
+cli.run({args}, {callback})                                       *cli.run*
+    Execute arbitrary gh command.
+    
+    Mirrors: `gh <args>`
+
+    Parameters: ~
+        {args}      string[]  Command arguments
+        {callback}  function  Called with (success, result, error)
+
+    Example: >lua
+        cli.run({ "pr", "list" }, function(success, result, error)
+          if success then
+            print(result)
+          end
+        end)
+<
+
+------------------------------------------------------------------------------
+8.3 Backward Compatibility                                *gh-api-deprecated*
+
+The old flat API is still supported but deprecated:
+
+    cli.list_issues()    → Use cli.issue.list()
+    cli.get_issue()      → Use cli.issue.view()
+    cli.create_issue()   → Use cli.issue.create()
+    cli.update_title()   → Use cli.issue.edit({ title })
+    cli.update_body()    → Use cli.issue.edit({ body })
+    cli.delete_issue()   → Use cli.issue.delete()
+
+Note: Deprecated functions will show a warning when first used.
+
+------------------------------------------------------------------------------
+8.4 Utilities                                                *gh-api-utilities*
 
 gh.cache                                                          *gh.cache*
     In-memory cache with TTL support.
