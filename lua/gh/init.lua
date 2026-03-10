@@ -17,10 +17,6 @@ function M.setup()
 
   -- Set up autocmds for gh:// buffers
   M.issues.setup_autocmds()
-
-  -- Set up blink.cmp completion for metadata fields
-  local completion = require("gh.completion.metadata")
-  completion.setup()
 end
 
 -- Auto-setup on require

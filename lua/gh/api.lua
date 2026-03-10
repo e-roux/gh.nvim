@@ -3,6 +3,7 @@
 local M = {}
 
 local Job = require("plenary.job")
+local repo_utils = require("gh.utils.repo")
 
 --- Execute gh api GraphQL query
 ---@param query string GraphQL query
@@ -83,27 +84,20 @@ end
 function M.get_issue(number, repo, callback)
   -- Determine repository
   if not repo then
-    Job:new({
-      command = "gh",
-      args = { "repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner" },
-      on_exit = function(job, return_val)
-        if return_val ~= 0 then
-          vim.schedule(function()
-            callback(false, nil, "Could not determine repository")
-          end)
-          return
-        end
-        local repo_name = vim.trim(table.concat(job:result(), ""))
+    repo_utils.get_current_repo(function(repo_name, error)
+      if error then
+        callback(false, nil, error)
+      else
         M.get_issue(number, repo_name, callback)
-      end,
-    }):start()
+      end
+    end)
     return
   end
 
-  local owner, name = repo:match("^(.-)/(.-)$")
-  if not owner or not name then
+  local owner, name, error = repo_utils.parse_repo(repo)
+  if error then
     vim.schedule(function()
-      callback(false, nil, "Invalid repository format: " .. repo)
+      callback(false, nil, error)
     end)
     return
   end
@@ -146,9 +140,9 @@ function M.get_issue(number, repo, callback)
     }
   ]]
 
-  M.graphql(query, { owner = owner, name = name, number = number }, function(success, data, error)
+  M.graphql(query, { owner = owner, name = name, number = number }, function(success, data, err)
     if not success then
-      callback(false, nil, error)
+      callback(false, nil, err)
       return
     end
 
@@ -171,27 +165,20 @@ function M.list_issues(repo, opts, callback)
 
   -- Determine repository
   if not repo then
-    Job:new({
-      command = "gh",
-      args = { "repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner" },
-      on_exit = function(job, return_val)
-        if return_val ~= 0 then
-          vim.schedule(function()
-            callback(false, nil, "Could not determine repository")
-          end)
-          return
-        end
-        local repo_name = vim.trim(table.concat(job:result(), ""))
+    repo_utils.get_current_repo(function(repo_name, error)
+      if error then
+        callback(false, nil, error)
+      else
         M.list_issues(repo_name, opts, callback)
-      end,
-    }):start()
+      end
+    end)
     return
   end
 
-  local owner, name = repo:match("^(.-)/(.-)$")
-  if not owner or not name then
+  local owner, name, error = repo_utils.parse_repo(repo)
+  if error then
     vim.schedule(function()
-      callback(false, nil, "Invalid repository format: " .. repo)
+      callback(false, nil, error)
     end)
     return
   end
@@ -239,9 +226,9 @@ function M.list_issues(repo, opts, callback)
     state_filter
   )
 
-  M.graphql(query, { owner = owner, name = name }, function(success, data, error)
+  M.graphql(query, { owner = owner, name = name }, function(success, data, err)
     if not success then
-      callback(false, nil, error)
+      callback(false, nil, err)
       return
     end
 

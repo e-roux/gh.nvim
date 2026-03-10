@@ -85,7 +85,7 @@ function M.render(bufnr, namespace, extmark_ids, values, start_line)
     { { "", "Normal" } }, -- blank line before separator
     {
       {
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+        string.rep("━", 80),
         "Comment",
       },
     },

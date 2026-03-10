@@ -345,10 +345,7 @@ function M.setup_auto_filter(bufnr)
       end
     end
 
-    if is_filter_line then
-      -- Don't force cursor positioning
-      -- Let Neovim and insert mode handle it naturally
-    elseif line_num > M.FIRST_ISSUE_LINE - 1 then
+    if not is_filter_line and line_num > M.FIRST_ISSUE_LINE - 1 then
       -- We're on an issue line - only reposition in insert mode
       local mode = vim.api.nvim_get_mode().mode
       if mode == "i" or mode == "R" then
@@ -434,7 +431,7 @@ function M.setup_auto_filter(bufnr)
 
       local cursor = vim.api.nvim_win_get_cursor(0)
       local line_num = cursor[1]
-      local col = cursor[2]
+      local _ = cursor[2]
 
       -- Prevent cursor from being on line 1 (help line)
       if line_num == 1 then
