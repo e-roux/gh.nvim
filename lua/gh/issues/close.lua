@@ -16,8 +16,17 @@ function M.close_issue(number, repo, opts)
     function(success, error)
       if success then
         vim.notify(string.format("Issue #%d closed", number), vim.log.levels.INFO)
-        -- Clear issue list cache as it might have changed
         cache.clear("issues_list_" .. (repo or "current"))
+        vim.schedule(function()
+          vim.api.nvim_exec_autocmds("User", {
+            pattern = "GhIssueUpdated",
+            data = {
+              issue_number = number,
+              repo = repo,
+              state = "closed",
+            },
+          })
+        end)
       else
         vim.notify(
           string.format("Failed to close issue #%d: %s", number, error or "unknown error"),
@@ -37,8 +46,17 @@ function M.reopen_issue(number, repo, opts)
   cli.issue.reopen(number, { repo = repo, comment = opts.comment }, function(success, error)
     if success then
       vim.notify(string.format("Issue #%d reopened", number), vim.log.levels.INFO)
-      -- Clear issue list cache
       cache.clear("issues_list_" .. (repo or "current"))
+      vim.schedule(function()
+        vim.api.nvim_exec_autocmds("User", {
+          pattern = "GhIssueUpdated",
+          data = {
+            issue_number = number,
+            repo = repo,
+            state = "open",
+          },
+        })
+      end)
     else
       vim.notify(
         string.format("Failed to reopen issue #%d: %s", number, error or "unknown error"),
