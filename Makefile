@@ -20,17 +20,26 @@ LUA_DIR ?= lua
 # Phony Targets Declaration
 #------------------------------------------------------------------------------
 
-.PHONY: all test test.unit e2e fmt lint clean help
-.PHONY: plenary.init plenary.run plenary.clean
+.PHONY: all sync fmt lint typecheck test test.unit test.e2e check qa clean distclean doc.build doc.serve help
+.PHONY: e2e plenary.init plenary.run plenary.clean
 .PHONY: stylua.run luacheck.run
 
 #------------------------------------------------------------------------------
 # High-Level Targets
 #------------------------------------------------------------------------------
 
-all: test
+all: qa
 
-test: test.unit e2e
+sync: plenary.init
+
+fmt: stylua.run
+
+lint: luacheck.run
+
+typecheck:
+	printf "⚠️  Typecheck not implemented for Lua, skipping...\n"
+
+test: test.unit test.e2e
 
 test.unit: plenary.init
 	printf "🧪 Running unit tests...\n"
@@ -47,6 +56,8 @@ test.unit: plenary.init
 		printf "⚠️  No unit test files found in $(TEST_DIR)/unit\n"; \
 	fi
 
+test.e2e: e2e
+
 e2e: plenary.init
 	printf "🚀 Running E2E tests (user journeys)...\n"
 	test_files=$$(find $(TEST_DIR)/e2e -maxdepth 1 -name '*_journey_spec.lua' -type f 2>/dev/null); \
@@ -62,9 +73,9 @@ e2e: plenary.init
 		printf "⚠️  No E2E test files found in $(TEST_DIR)/e2e\n"; \
 	fi
 
-fmt: stylua.run
+check: fmt lint typecheck
 
-lint: luacheck.run
+qa: check test
 
 #------------------------------------------------------------------------------
 # Testing
@@ -131,6 +142,17 @@ else
 endif
 
 #------------------------------------------------------------------------------
+# Documentation
+#------------------------------------------------------------------------------
+
+doc.build:
+	$(NVIM) --headless -c "helptags doc" -c "q"
+	printf "✅ Documentation tags built\n"
+
+doc.serve: doc.build
+	$(NVIM) -c "help gh"
+
+#------------------------------------------------------------------------------
 # Cleanup
 #------------------------------------------------------------------------------
 
@@ -138,6 +160,11 @@ clean: plenary.clean
 	printf "🧹 Cleaning artifacts...\n"
 	rm -rf .luacheckcache
 	printf "✅ Clean complete\n"
+
+distclean: clean
+	printf "🧹 Deep clean...\n"
+	rm -rf "$(RUNTIME_DIR)"
+	printf "✅ Distclean complete\n"
 
 #------------------------------------------------------------------------------
 # Help
@@ -147,13 +174,20 @@ help:
 	printf "gh.nvim Makefile\n\n"
 	printf "Usage: make [target] [VAR=val]\n\n"
 	printf "Targets:\n"
-	printf "  all          - Run all tests (default)\n"
+	printf "  all          - Run quality gate (qa)\n"
+	printf "  sync         - Restore dependencies\n"
+	printf "  fmt          - Format code\n"
+	printf "  lint         - Lint code\n"
+	printf "  typecheck    - Type validation (no-op for Lua)\n"
 	printf "  test         - Run all tests (unit + e2e)\n"
 	printf "  test.unit    - Run unit tests only\n"
-	printf "  e2e          - Run E2E tests only\n"
-	printf "  fmt          - Format Lua files with stylua\n"
-	printf "  lint         - Lint Lua files with luacheck\n"
+	printf "  test.e2e     - Run E2E tests only\n"
+	printf "  check        - fmt + lint + typecheck\n"
+	printf "  qa           - Mandatory quality gate (check + test)\n"
+	printf "  doc.build    - Build documentation tags\n"
+	printf "  doc.serve    - Serve documentation locally\n"
 	printf "  clean        - Remove generated files and caches\n"
+	printf "  distclean    - Deep clean (remove runtime)\n"
 	printf "  help         - Show this help message\n\n"
 	printf "Namespaced Targets:\n"
 	printf "  plenary.init - Clone plenary.nvim for testing\n"
