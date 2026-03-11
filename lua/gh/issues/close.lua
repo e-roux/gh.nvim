@@ -10,14 +10,16 @@ local cache = require("gh.cache")
 ---@param opts? table Options (comment, reason)
 function M.close_issue(number, repo, opts)
   opts = opts or {}
+  local state = "open"
+  local cache_key = string.format("issues_%s_%s", repo and repo:gsub("/", "_") or "current", state)
   cli.issue.close(
     number,
     { repo = repo, comment = opts.comment, reason = opts.reason },
     function(success, error)
       if success then
         vim.notify(string.format("Issue #%d closed", number), vim.log.levels.INFO)
-        cache.clear("issues_list_" .. (repo or "current"))
-        vim.schedule(function()
+        cache.clear(cache_key)
+        vim.defer_fn(function()
           vim.api.nvim_exec_autocmds("User", {
             pattern = "GhIssueUpdated",
             data = {
@@ -26,7 +28,7 @@ function M.close_issue(number, repo, opts)
               state = "closed",
             },
           })
-        end)
+        end, 500)
       else
         vim.notify(
           string.format("Failed to close issue #%d: %s", number, error or "unknown error"),
@@ -43,11 +45,13 @@ end
 ---@param opts? table Options (comment)
 function M.reopen_issue(number, repo, opts)
   opts = opts or {}
+  local state = "closed"
+  local cache_key = string.format("issues_%s_%s", repo and repo:gsub("/", "_") or "current", state)
   cli.issue.reopen(number, { repo = repo, comment = opts.comment }, function(success, error)
     if success then
       vim.notify(string.format("Issue #%d reopened", number), vim.log.levels.INFO)
-      cache.clear("issues_list_" .. (repo or "current"))
-      vim.schedule(function()
+      cache.clear(cache_key)
+      vim.defer_fn(function()
         vim.api.nvim_exec_autocmds("User", {
           pattern = "GhIssueUpdated",
           data = {
@@ -56,7 +60,7 @@ function M.reopen_issue(number, repo, opts)
             state = "open",
           },
         })
-      end)
+      end, 500)
     else
       vim.notify(
         string.format("Failed to reopen issue #%d: %s", number, error or "unknown error"),
