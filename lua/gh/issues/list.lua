@@ -455,9 +455,18 @@ function M.open_issue_list(repo, opts)
           local buf_repo = vim.api.nvim_buf_get_var(bufnr, "gh_repo")
           local buf_state = vim.api.nvim_buf_get_var(bufnr, "gh_issues_state")
 
-          -- Check if this event is for our repo
+          -- Check if this event is our repo
           -- Always refresh when an issue is updated in this repo
           if (event_repo or "") == buf_repo then
+            -- Save window view before refresh to preserve scroll position
+            local win_view = nil
+            for _, win in ipairs(vim.api.nvim_list_wins()) do
+              if vim.api.nvim_win_get_buf(win) == bufnr then
+                win_view = vim.fn.winsaveview()
+                break
+              end
+            end
+
             -- Fetch and update buffer
             cli.issue.list({ state = buf_state, repo = repo }, function(success, fresh_issues)
               if success then
@@ -476,6 +485,21 @@ function M.open_issue_list(repo, opts)
                     fresh_collection:to_table()
                   )
                   vim.api.nvim_buf_set_var(bufnr, "gh_issues_loaded", #(fresh_issues or {}))
+
+                  -- Restore window view if we saved it
+                  if win_view then
+                    for _, win in ipairs(vim.api.nvim_list_wins()) do
+                      if vim.api.nvim_win_get_buf(win) == bufnr then
+                        local total_lines = vim.api.nvim_buf_line_count(bufnr)
+                        -- Adjust line position if it's now beyond buffer end
+                        if win_view.lnum > total_lines then
+                          win_view.lnum = total_lines
+                        end
+                        vim.fn.winrestview(win_view)
+                        break
+                      end
+                    end
+                  end
                 end)
               end
             end)
