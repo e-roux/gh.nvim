@@ -158,8 +158,8 @@ function M.open_issue_detail(number, repo)
         return false
       end
 
-      -- Trigger refresh of list buffers
-      vim.schedule(function()
+      -- Trigger refresh of list buffers after a short delay to allow GitHub to propagate changes
+      vim.defer_fn(function()
         vim.api.nvim_exec_autocmds("User", {
           pattern = "GhIssueUpdated",
           data = {
@@ -168,7 +168,7 @@ function M.open_issue_detail(number, repo)
             title = parsed.title,
           },
         })
-      end)
+      end, 500)
 
       return true
     end)
