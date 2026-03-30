@@ -5,6 +5,18 @@ local cli = require("gh.cli")
 local cache = require("gh.cache")
 local config = require("gh.config")
 
+--- Delete issue by number
+---@param number integer Issue number
+---@param repo string|nil Repository (owner/repo)
+---@param callback fun(success: boolean, error: string|nil)
+function M.delete_issue(number, repo, callback)
+  cli.issue.delete(number, repo, function(success, error)
+    if callback then
+      callback(success, error)
+    end
+  end)
+end
+
 --- Delete issue at cursor position
 ---@param bufnr integer Buffer number
 ---@param repo string|nil Repository (owner/repo) or nil for current repo

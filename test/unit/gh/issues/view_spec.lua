@@ -32,13 +32,12 @@ describe("gh.issues.view", function()
 
   describe("open_issue_detail", function()
     it("should open an issue detail buffer", function()
-      -- Mock nvim API
-      local old_buf_set_lines = vim.api.nvim_buf_set_lines
-      vim.api.nvim_buf_set_lines = function() end
-      
+      local old_metadata = view.add_issue_metadata_virtual_text
+      view.add_issue_metadata_virtual_text = function() end
+
       view.open_issue_detail(1, "owner/repo")
-      
-      vim.api.nvim_buf_set_lines = old_buf_set_lines
+
+      view.add_issue_metadata_virtual_text = old_metadata
     end)
   end)
 end)

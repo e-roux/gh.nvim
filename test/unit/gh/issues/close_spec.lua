@@ -53,18 +53,23 @@ describe("gh.issues.close", function()
   end)
 
   describe("get_issue_completions", function()
-    it("should fetch and cache completions", function(done)
+    it("should fetch and cache completions", function()
       local cache = require("gh.cache")
+      local result = nil
       close.get_issue_completions("owner/repo", "open", function(issues)
-        assert.is_table(issues)
-        assert.equal(1, #issues)
-        assert.equal(1, issues[1].number)
-        
-        -- Check if it was cached
-        local cached = cache.read("issues_completion_owner/repo_open")
-        assert.is_table(cached)
-        done()
+        result = issues
       end)
+
+      vim.wait(500, function()
+        return result ~= nil
+      end)
+
+      assert.is_table(result)
+      assert.equal(1, #result)
+      assert.equal(1, result[1].number)
+
+      local cached = cache.read("issues_completion_owner/repo_open")
+      assert.is_table(cached)
     end)
   end)
 end)

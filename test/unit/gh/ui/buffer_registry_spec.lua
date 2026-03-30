@@ -44,11 +44,16 @@ describe("ui.buffer_registry", function()
   end)
 
   it("should unregister by bufnr", function()
+    local original_is_valid = vim.api.nvim_buf_is_valid
+    vim.api.nvim_buf_is_valid = function(buf) return buf == 1 or buf == 2 end
+
     registry.register("test1", 1)
     registry.register("test2", 2)
     registry.unregister_by_bufnr(1)
     assert.is_nil(registry.get("test1"))
     assert.is_not_nil(registry.get("test2"))
+
+    vim.api.nvim_buf_is_valid = original_is_valid
   end)
 
   it("should find by pattern", function()

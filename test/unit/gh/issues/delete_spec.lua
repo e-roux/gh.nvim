@@ -21,12 +21,18 @@ describe("gh.issues.delete", function()
   end)
 
   describe("delete_issue", function()
-    it("should delete an issue", function(done)
+    it("should delete an issue", function()
+      local result = nil
       delete.delete_issue(1, "owner/repo", function(success, error)
-        assert.is_true(success)
-        assert.is_nil(error)
-        done()
+        result = { success = success, error = error }
       end)
+
+      vim.wait(500, function()
+        return result ~= nil
+      end)
+
+      assert.is_true(result.success)
+      assert.is_nil(result.error)
     end)
   end)
 end)
