@@ -2,25 +2,34 @@
 --- Provides utilities for working with GitHub CLI in Neovim
 local M = {}
 
-M.cache = require("gh.cache")
-M.cli = require("gh.cli")
-M.issues = require("gh.issues")
-M.buffer = require("gh.ui.buffer")
-M.config = require("gh.config")
+-- Cache for lazy-loaded issues module
+local _issues_cache
 
---- Initialize gh.nvim autocmds
---- This is called automatically on require, no need to call explicitly
-function M.setup()
-  -- Set up buffer registry autocmd for cleanup
-  local registry = require("gh.ui.buffer_registry")
-  registry.setup_autocmd()
-
-  -- Set up autocmds for gh:// buffers
-  M.issues.setup_autocmds()
+--- Get issues module (lazy-loaded)
+---@return table
+local function get_issues()
+  if not _issues_cache then
+    _issues_cache = require("gh.issues")
+  end
+  return _issues_cache
 end
 
--- Auto-setup on require
-M.setup()
+-- Expose issues as a lazy-loaded property
+M.issues = setmetatable({}, {
+  __index = function(_, key)
+    return get_issues()[key]
+  end,
+  __call = function(_, ...)
+    return get_issues()(...)
+  end,
+})
+
+--- Initialize gh.nvim autocmds.
+--- Called once by plugin/gh.lua on the first :Gh command invocation.
+function M.setup()
+  require("gh.ui.buffer_registry").setup_autocmd()
+  get_issues().setup_autocmds()
+end
 
 --- Main entry point for :Gh command
 ---@param opts table Command options from nvim_create_user_command
@@ -32,7 +41,7 @@ function M.command(opts)
   end
 
   -- Pass all args directly to gh CLI
-  M.cli.run(args, function(success, result, error_msg)
+  require("gh.cli").run(args, function(success, result, error_msg)
     if not success then
       vim.notify("gh command failed: " .. (error_msg or "unknown error"), vim.log.levels.ERROR)
       return

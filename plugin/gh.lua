@@ -1,22 +1,43 @@
 -- TODO: See GitHub issues #25 and #22 — quickfix parsing / gh integration. Add tests and harden gh output handling.
 
--- Check for plenary dependency
-local ok = pcall(require, "plenary.job")
-if not ok then
-  vim.notify("gh.nvim: Plenary not found", vim.log.levels.WARN)
+if vim.g.loaded_gh_nvim then
   return
 end
+vim.g.loaded_gh_nvim = true
 
--- Load gh module
-local gh_module_ok, gh = pcall(require, "gh")
-if not gh_module_ok then
-  vim.notify("gh.nvim: Failed to load gh module: " .. tostring(gh), vim.log.levels.ERROR)
-  return
+local _initialized = false
+
+--- Lazy one-time initialization: checks plenary and sets up autocmds.
+--- Called on first :Gh invocation so nothing runs on Neovim startup.
+---@return boolean success
+local function ensure_initialized()
+  if _initialized then
+    return true
+  end
+
+  if not pcall(require, "plenary.job") then
+    vim.notify("gh.nvim: Plenary not found", vim.log.levels.WARN)
+    return false
+  end
+
+  local ok, err = pcall(function()
+    require("gh").setup()
+  end)
+  if not ok then
+    vim.notify("gh.nvim: Failed to initialize: " .. tostring(err), vim.log.levels.ERROR)
+    return false
+  end
+
+  _initialized = true
+  return true
 end
 
 --- Main gh command handler - mirrors gh CLI structure
---- @param opts table
+---@param opts table
 local function gh_command(opts)
+  if not ensure_initialized() then
+    return
+  end
   local commands = require("gh.commands")
   commands.handle(opts.fargs)
 end

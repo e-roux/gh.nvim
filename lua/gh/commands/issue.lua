@@ -200,8 +200,7 @@ end
 ---@param args string[] Command arguments starting after "issue list"
 function M.list(args)
   local repo, filter_opts = parse_list_args(args)
-  local gh = require("gh")
-  gh.issues.open_issue_list(repo, filter_opts)
+  require("gh.issues").open_issue_list(repo, filter_opts)
 end
 
 --- Handle issue view command
@@ -214,16 +213,14 @@ function M.view(args)
     return
   end
 
-  local gh = require("gh")
-  gh.issues.open_issue_detail(number, repo)
+  require("gh.issues").open_issue_detail(number, repo)
 end
 
 --- Handle issue create command
 ---@param args string[] Command arguments starting after "issue create"
 function M.create(args)
   local create_opts = parse_create_args(args)
-  local gh = require("gh")
-  gh.issues.create_issue_buffer(create_opts)
+  require("gh.issues").create_issue_buffer(create_opts)
 end
 
 --- Handle issue close command
