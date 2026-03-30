@@ -29,9 +29,9 @@ describe("issues.create", function()
   describe("get_label_completions", function()
     it("should fetch and cache labels", function()
       local cli = require("gh.cli")
-      local original_list = cli.list_labels
+      local original_list = cli.label.list
 
-      cli.list_labels = function(repo, callback)
+      cli.label.list = function(opts, callback)
         callback(true, {
           { name = "bug" },
           { name = "enhancement" },
@@ -51,16 +51,16 @@ describe("issues.create", function()
       assert.is_true(vim.tbl_contains(result, "bug"))
       assert.is_true(vim.tbl_contains(result, "enhancement"))
 
-      cli.list_labels = original_list
+      cli.label.list = original_list
     end)
   end)
 
   describe("get_milestone_completions", function()
     it("should fetch and cache milestones", function()
       local cli = require("gh.cli")
-      local original_list = cli.list_milestones
+      local original_list = cli.issue.list_milestones
 
-      cli.list_milestones = function(repo, callback)
+      cli.issue.list_milestones = function(repo, callback)
         callback(true, {
           { title = "v1.0" },
           { title = "v2.0" },
@@ -80,7 +80,7 @@ describe("issues.create", function()
       assert.is_true(vim.tbl_contains(result, "v1.0"))
       assert.is_true(vim.tbl_contains(result, "v2.0"))
 
-      cli.list_milestones = original_list
+      cli.issue.list_milestones = original_list
     end)
   end)
 
